@@ -1,0 +1,8 @@
+.env
+*.pem
+*.key
+*.p12
+**/service-account*.json
+.DS_Store
+node_modules
+dist
