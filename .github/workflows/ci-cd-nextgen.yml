@@ -1,0 +1,47 @@
+name: nextgen-ci-cd
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  backend-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        run: pytest -q
+
+  frontend-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate frontend beta files
+        run: |
+          test -f frontend/beta/index.html
+          test -f frontend/beta/app.js
+          test -f frontend/beta/styles.css
+
+  deploy-placeholder:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [backend-test, frontend-smoke]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deployment gate
+        run: echo "Add cloud-specific deploy jobs (GCP/Azure) using OIDC and secretless auth."

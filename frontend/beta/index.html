@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Next-Gen Digital Factory Beta</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="hero">
+      <h1>Next-Gen Digital Factory</h1>
+      <p>Beta surface for empire-courier.com and VillagerMediaGroup.com</p>
+    </header>
+
+    <main class="container">
+      <section>
+        <h2>System Health</h2>
+        <pre id="health">Loading...</pre>
+      </section>
+
+      <section>
+        <h2>Sample Article Feed</h2>
+        <ul id="feed"></ul>
+      </section>
+
+      <section>
+        <h2>Mock AI</h2>
+        <input id="prompt" type="text" placeholder="Enter editorial or ops prompt" />
+        <button id="runAi">Run Mock AI</button>
+        <pre id="aiOutput"></pre>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
