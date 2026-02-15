@@ -1,8 +1,8 @@
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 
 def get_sample_feed() -> list[dict]:
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     return [
         {
             "id": "ec-001",

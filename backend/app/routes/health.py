@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 from flask import Blueprint, jsonify
 
@@ -11,6 +11,6 @@ def health_check():
         {
             "status": "ok",
             "service": "nextgen-factory-api",
-            "timestamp": datetime.now(UTC).isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     )
