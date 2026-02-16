@@ -66,6 +66,80 @@ pre {
   color: var(--muted);
 }
 
+textarea {
+  width: min(540px, 100%);
+  padding: 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+select {
+  padding: 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.admin-panel {
+  border-left: 4px solid var(--primary);
+}
+
+.admin-controls {
+  margin-bottom: 1rem;
+}
+
+.admin-form {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.admin-form button {
+  margin-left: 0;
+  width: fit-content;
+}
+
+.admin-list {
+  margin-bottom: 1rem;
+}
+
+.admin-item {
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+}
+
+.admin-item .meta {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-bottom: 0.5rem;
+}
+
+.admin-item input,
+.admin-item textarea {
+  width: 100%;
+  margin-bottom: 0.4rem;
+}
+
+.admin-item button {
+  margin-left: 0;
+  margin-right: 0.4rem;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.7rem;
+}
+
+.admin-item button.publish-btn {
+  background: #16a34a;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 @media (max-width: 640px) {
   button {
     margin: 0.6rem 0 0;

@@ -87,6 +87,9 @@ async function loadBrands() {
       btn.addEventListener("click", () => selectBrand(brand.key));
       container.appendChild(btn);
     });
+
+    // Populate admin brand selects
+    populateAdminBrands(data.items);
   } catch (error) {
     container.textContent = error.message;
   }
@@ -121,7 +124,7 @@ async function loadFeed(append) {
 
     data.articles.forEach((item) => {
       const li = document.createElement("li");
-      li.innerHTML = `<strong>${item.brand}</strong>: ${item.title}<br><small>${item.summary}</small>`;
+      li.innerHTML = `<strong>${item.brand}</strong>: ${item.title}<br><small>${item.body || ""}</small>`;
       list.appendChild(li);
     });
 
@@ -152,6 +155,152 @@ async function runMockAi() {
   }
 }
 
+// --- Admin Panel ---
+
+function adminLog(data) {
+  document.getElementById("adminLog").textContent = JSON.stringify(data, null, 2);
+}
+
+function populateAdminBrands(brands) {
+  const createSelect = document.getElementById("adminBrand");
+  const filterSelect = document.getElementById("adminBrandFilter");
+
+  createSelect.innerHTML = "";
+  brands.forEach((b) => {
+    const opt = document.createElement("option");
+    opt.value = b.key;
+    opt.textContent = b.label;
+    createSelect.appendChild(opt);
+  });
+
+  // Keep "All Brands" option in filter
+  filterSelect.innerHTML = '<option value="">All Brands</option>';
+  brands.forEach((b) => {
+    const opt = document.createElement("option");
+    opt.value = b.key;
+    opt.textContent = b.label;
+    filterSelect.appendChild(opt);
+  });
+}
+
+async function adminCreateDraft() {
+  const btn = document.getElementById("adminCreate");
+  const brand = document.getElementById("adminBrand").value;
+  const title = document.getElementById("adminTitle").value.trim();
+  const body = document.getElementById("adminBody").value.trim();
+
+  if (!title) {
+    adminLog({ error: "Title is required" });
+    return;
+  }
+
+  btn.disabled = true;
+  try {
+    const data = await fetchJson("/admin/articles", {
+      method: "POST",
+      body: JSON.stringify({ brand, title, body }),
+    });
+    adminLog(data);
+    document.getElementById("adminTitle").value = "";
+    document.getElementById("adminBody").value = "";
+    await adminRefresh();
+  } catch (error) {
+    adminLog({ error: error.message });
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function adminPatch(id, updates) {
+  try {
+    const data = await fetchJson(`/admin/articles/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(updates),
+    });
+    adminLog(data);
+    await adminRefresh();
+    await loadFeed(false);
+    await loadBrands();
+  } catch (error) {
+    adminLog({ error: error.message });
+  }
+}
+
+function renderAdminList(container, articles, showActions) {
+  container.innerHTML = "";
+  if (articles.length === 0) {
+    container.textContent = "None";
+    return;
+  }
+
+  articles.forEach((a) => {
+    const div = document.createElement("div");
+    div.className = "admin-item";
+
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    meta.textContent = `${a.brand} · ${a.status} · ${a.updated_at}`;
+    div.appendChild(meta);
+
+    if (showActions) {
+      const titleInput = document.createElement("input");
+      titleInput.type = "text";
+      titleInput.value = a.title;
+      div.appendChild(titleInput);
+
+      const bodyArea = document.createElement("textarea");
+      bodyArea.rows = 2;
+      bodyArea.value = a.body || "";
+      div.appendChild(bodyArea);
+
+      const saveBtn = document.createElement("button");
+      saveBtn.textContent = "Save";
+      saveBtn.addEventListener("click", () => {
+        saveBtn.disabled = true;
+        adminPatch(a.id, { title: titleInput.value, body: bodyArea.value }).finally(
+          () => (saveBtn.disabled = false)
+        );
+      });
+      div.appendChild(saveBtn);
+
+      const pubBtn = document.createElement("button");
+      pubBtn.textContent = "Publish";
+      pubBtn.className = "publish-btn";
+      pubBtn.addEventListener("click", () => {
+        pubBtn.disabled = true;
+        adminPatch(a.id, { status: "published" }).finally(() => (pubBtn.disabled = false));
+      });
+      div.appendChild(pubBtn);
+    } else {
+      const titleEl = document.createElement("div");
+      titleEl.innerHTML = `<strong>${a.title}</strong>`;
+      div.appendChild(titleEl);
+    }
+
+    container.appendChild(div);
+  });
+}
+
+async function adminRefresh() {
+  const brandFilter = document.getElementById("adminBrandFilter").value;
+  const params = new URLSearchParams();
+  if (brandFilter) params.set("brand", brandFilter);
+
+  try {
+    params.set("status", "draft");
+    const drafts = await fetchJson(`/admin/articles?${params.toString()}`);
+    renderAdminList(document.getElementById("adminDrafts"), drafts.articles, true);
+
+    params.set("status", "published");
+    const published = await fetchJson(`/admin/articles?${params.toString()}`);
+    renderAdminList(document.getElementById("adminPublished"), published.articles, false);
+  } catch (error) {
+    adminLog({ error: error.message });
+  }
+}
+
+// --- Init ---
+
 async function init() {
   try {
     await resolveApiBase();
@@ -162,9 +311,13 @@ async function init() {
   await loadHealth();
   await loadBrands();
   await loadFeed(false);
+  await adminRefresh();
 }
 
 document.getElementById("runAi").addEventListener("click", runMockAi);
 document.getElementById("loadMore").addEventListener("click", () => loadFeed(true));
+document.getElementById("adminCreate").addEventListener("click", adminCreateDraft);
+document.getElementById("adminRefresh").addEventListener("click", adminRefresh);
+document.getElementById("adminBrandFilter").addEventListener("change", adminRefresh);
 
 init();

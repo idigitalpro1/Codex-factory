@@ -31,6 +31,32 @@
         <button id="runAi">Run Mock AI</button>
         <pre id="aiOutput"></pre>
       </section>
+
+      <section class="admin-panel">
+        <h2>Admin (Mock CMS)</h2>
+
+        <div class="admin-controls">
+          <select id="adminBrandFilter"><option value="">All Brands</option></select>
+          <button id="adminRefresh">Refresh</button>
+        </div>
+
+        <h3>Create Draft</h3>
+        <div class="admin-form">
+          <select id="adminBrand"></select>
+          <input id="adminTitle" type="text" placeholder="Article title" />
+          <textarea id="adminBody" rows="3" placeholder="Article body"></textarea>
+          <button id="adminCreate">Create Draft</button>
+        </div>
+
+        <h3>Drafts</h3>
+        <div id="adminDrafts" class="admin-list">Loading...</div>
+
+        <h3>Published</h3>
+        <div id="adminPublished" class="admin-list">Loading...</div>
+
+        <h4>Last Action</h4>
+        <pre id="adminLog">—</pre>
+      </section>
     </main>
 
     <script src="./app.js"></script>
