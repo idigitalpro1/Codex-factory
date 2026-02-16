@@ -26,3 +26,7 @@ This file defines repository-local guardrails for human and AI contributors.
 - Verify listeners with `lsof -tiTCP:<port> -sTCP:LISTEN`.
 - Verify backend health with `GET /api/v1/health`.
 - Keep PID files under `.run/` and ensure they point to real listening processes.
+
+## Release Guardrail
+- Agents must not run release git commands (`git add`, `git commit`, `git tag`, `git push`).
+- For releases, output manual commands only and stop.

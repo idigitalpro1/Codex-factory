@@ -24,14 +24,26 @@ up:
 	@echo "[up] Installing backend dependencies"
 	@"$(BACKEND_DIR)/.venv/bin/pip" install -r "$(BACKEND_DIR)/requirements.txt" >/dev/null
 	@backend_listener_pid=$$(lsof -tiTCP:$(BACKEND_PORT) -sTCP:LISTEN 2>/dev/null | head -n1); \
-	backend_pid_file_pid=$$(cat "$(BACKEND_PID_FILE)" 2>/dev/null || true); \
-	if [ -n "$$backend_listener_pid" ] && [ -n "$$backend_pid_file_pid" ] && [ "$$backend_listener_pid" = "$$backend_pid_file_pid" ]; then \
-		echo "[up] Backend already running (pid $$backend_listener_pid, port $(BACKEND_PORT))"; \
-	elif [ -n "$$backend_listener_pid" ]; then \
-		echo "[up] Backend port $(BACKEND_PORT) is already in use by pid $$backend_listener_pid"; \
-		echo "[up] Run 'make down' or free the port before retrying"; \
-		exit 1; \
-	else \
+	if [ -n "$$backend_listener_pid" ]; then \
+		if curl -sS --max-time 2 "http://127.0.0.1:$(BACKEND_PORT)/api/v1/health" | grep -q '"status"'; then \
+			echo "[up] Backend already running (pid $$backend_listener_pid, port $(BACKEND_PORT))"; \
+		else \
+			echo "[up] Stale backend listener detected on :$(BACKEND_PORT) (pid $$backend_listener_pid), restarting"; \
+			kill "$$backend_listener_pid" 2>/dev/null || true; \
+			sleep 1; \
+			backend_check=$$(lsof -tiTCP:$(BACKEND_PORT) -sTCP:LISTEN 2>/dev/null | head -n1); \
+			if [ "$$backend_check" = "$$backend_listener_pid" ]; then \
+				kill -9 "$$backend_listener_pid" 2>/dev/null || true; \
+				sleep 1; \
+			fi; \
+			backend_listener_pid=$$(lsof -tiTCP:$(BACKEND_PORT) -sTCP:LISTEN 2>/dev/null | head -n1); \
+			if [ -n "$$backend_listener_pid" ]; then \
+				echo "[up] Could not clear backend port $(BACKEND_PORT), current pid $$backend_listener_pid"; \
+				exit 1; \
+			fi; \
+		fi; \
+	fi; \
+	if [ -z "$$backend_listener_pid" ]; then \
 		echo "[up] Starting backend on http://localhost:$(BACKEND_PORT)"; \
 		cd "$(BACKEND_DIR)" && nohup .venv/bin/python run.py > "$(BACKEND_LOG)" 2>&1 & \
 		sleep 1; \
@@ -54,9 +66,15 @@ up:
 		exit 1; \
 	else \
 		echo "[up] Starting frontend on http://localhost:$(FRONTEND_PORT)"; \
-		cd "$(FRONTEND_DIR)" && nohup python3 -m http.server "$(FRONTEND_PORT)" > "$(FRONTEND_LOG)" 2>&1 & \
+		cd "$(FRONTEND_DIR)" && nohup python3 -m http.server "$(FRONTEND_PORT)" --bind 127.0.0.1 > "$(FRONTEND_LOG)" 2>&1 & \
 		sleep 1; \
 		frontend_listener_pid=$$(lsof -tiTCP:$(FRONTEND_PORT) -sTCP:LISTEN 2>/dev/null | head -n1); \
+		if [ -z "$$frontend_listener_pid" ]; then \
+			echo "[up] Frontend http.server failed, retrying socket-level loopback bind"; \
+			cd "$(FRONTEND_DIR)" && nohup python3 -c "import http.server,socketserver; socketserver.TCPServer.allow_reuse_address=True; http.server.test(HandlerClass=http.server.SimpleHTTPRequestHandler, port=$(FRONTEND_PORT), bind='127.0.0.1')" > "$(FRONTEND_LOG)" 2>&1 & \
+			sleep 1; \
+			frontend_listener_pid=$$(lsof -tiTCP:$(FRONTEND_PORT) -sTCP:LISTEN 2>/dev/null | head -n1); \
+		fi; \
 		if [ -z "$$frontend_listener_pid" ]; then \
 			echo "[up] Frontend failed to start"; \
 			tail -n 50 "$(FRONTEND_LOG)" || true; \
@@ -69,48 +87,27 @@ up:
 	@echo "[up] Frontend log: $(FRONTEND_LOG)"
 
 down:
-	@backend_pid=$$(cat "$(BACKEND_PID_FILE)" 2>/dev/null || true); \
-	if [ -z "$$backend_pid" ]; then \
-		backend_pid=$$(lsof -tiTCP:$(BACKEND_PORT) -sTCP:LISTEN 2>/dev/null | head -n1); \
-	fi; \
-	if [ -n "$$backend_pid" ]; then \
-		echo "[down] Stopping backend (pid $$backend_pid)"; \
-		kill "$$backend_pid" 2>/dev/null || true; \
-		for _ in $$(seq 1 20); do \
-			current=$$(lsof -tiTCP:$(BACKEND_PORT) -sTCP:LISTEN 2>/dev/null | head -n1); \
-			[ "$$current" != "$$backend_pid" ] && break; \
-			sleep 0.1; \
-		done; \
-		current=$$(lsof -tiTCP:$(BACKEND_PORT) -sTCP:LISTEN 2>/dev/null | head -n1); \
-		if [ "$$current" = "$$backend_pid" ]; then \
-			echo "[down] Backend still listening on :$(BACKEND_PORT)"; \
-			exit 1; \
+	@for port in $(BACKEND_PORT) $(FRONTEND_PORT); do \
+		pid=$$(lsof -tiTCP:$$port -sTCP:LISTEN 2>/dev/null | head -n1); \
+		if [ -n "$$pid" ]; then \
+			echo "[down] Stopping listener on :$$port (pid $$pid)"; \
+			kill "$$pid" 2>/dev/null || true; \
+			sleep 1; \
+			cur=$$(lsof -tiTCP:$$port -sTCP:LISTEN 2>/dev/null | head -n1); \
+			if [ "$$cur" = "$$pid" ]; then \
+				kill -9 "$$pid" 2>/dev/null || true; \
+				sleep 1; \
+			fi; \
+			cur=$$(lsof -tiTCP:$$port -sTCP:LISTEN 2>/dev/null | head -n1); \
+			if [ -n "$$cur" ]; then \
+				echo "[down] Listener still active on :$$port (pid $$cur)"; \
+				exit 1; \
+			fi; \
+			echo "[down] Port $$port released"; \
+		else \
+			echo "[down] No listener on :$$port"; \
 		fi; \
-		echo "[down] Backend stopped"; \
-	else \
-		echo "[down] Backend is not running"; \
-	fi
-	@frontend_pid=$$(cat "$(FRONTEND_PID_FILE)" 2>/dev/null || true); \
-	if [ -z "$$frontend_pid" ]; then \
-		frontend_pid=$$(lsof -tiTCP:$(FRONTEND_PORT) -sTCP:LISTEN 2>/dev/null | head -n1); \
-	fi; \
-	if [ -n "$$frontend_pid" ]; then \
-		echo "[down] Stopping frontend (pid $$frontend_pid)"; \
-		kill "$$frontend_pid" 2>/dev/null || true; \
-		for _ in $$(seq 1 20); do \
-			current=$$(lsof -tiTCP:$(FRONTEND_PORT) -sTCP:LISTEN 2>/dev/null | head -n1); \
-			[ "$$current" != "$$frontend_pid" ] && break; \
-			sleep 0.1; \
-		done; \
-		current=$$(lsof -tiTCP:$(FRONTEND_PORT) -sTCP:LISTEN 2>/dev/null | head -n1); \
-		if [ "$$current" = "$$frontend_pid" ]; then \
-			echo "[down] Frontend still listening on :$(FRONTEND_PORT)"; \
-			exit 1; \
-		fi; \
-		echo "[down] Frontend stopped"; \
-	else \
-		echo "[down] Frontend is not running"; \
-	fi
+	done
 	@rm -f "$(BACKEND_PID_FILE)" "$(FRONTEND_PID_FILE)"
 
 status:
