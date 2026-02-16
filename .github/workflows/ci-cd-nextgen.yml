@@ -72,10 +72,26 @@ jobs:
       - name: Build frontend image
         run: docker build -t codex-frontend:ci -f frontend/beta/Dockerfile frontend/beta
 
-  deploy-placeholder:
+  deploy-lightsail:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     needs: [stabilizer-check, backend-test, frontend-smoke, docker-build]
     runs-on: ubuntu-latest
     steps:
-      - name: Deployment gate
-        run: echo "Add cloud-specific deploy jobs (GCP/Azure) using OIDC and secretless auth."
+      - name: Deploy to Lightsail
+        env:
+          SSH_KEY: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          SSH_HOST: 44.236.197.183
+          SSH_USER: ubuntu
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key "$SSH_USER@$SSH_HOST" '~/deploy.sh'
+          rm -f ~/.ssh/deploy_key
+
+      - name: Verify deployment
+        run: |
+          sleep 5
+          curl -fsS --connect-timeout 10 https://5280.menu/api/v1/health
+          echo ""
+          echo "Deployment verified."
