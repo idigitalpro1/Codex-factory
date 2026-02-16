@@ -2,11 +2,7 @@ from __future__ import annotations
 
 from ..db import db
 from ..models import Article
-
-BRAND_LABELS = {
-    "empire-courier": "Empire-Courier",
-    "villager": "Villager Media Group",
-}
+from .brand_registry import get_brand
 
 MAX_LIMIT = 100
 DEFAULT_LIMIT = 20
@@ -68,17 +64,41 @@ def get_articles(brand: str | None = None) -> list[dict]:
     return [a.to_dict() for a in q.order_by(Article.created_at.desc()).all()]
 
 
+def get_brand_counts() -> dict[str, dict[str, int]]:
+    """Return {brand_slug: {published: N, draft: N, total: N}}."""
+    _ensure_seeds()
+    rows = (
+        db.session.query(Article.brand, Article.status, db.func.count(Article.id))
+        .group_by(Article.brand, Article.status)
+        .all()
+    )
+    counts: dict[str, dict[str, int]] = {}
+    for brand_slug, status, count in rows:
+        if brand_slug not in counts:
+            counts[brand_slug] = {"published": 0, "draft": 0, "scheduled": 0, "total": 0}
+        counts[brand_slug][status] = count
+        counts[brand_slug]["total"] += count
+    return counts
+
+
 def list_brands() -> list[dict]:
     _ensure_seeds()
+    counts = get_brand_counts()
+    # Legacy shape for backwards compat with feed brand buttons
     results = (
         db.session.query(Article.brand, db.func.count(Article.id))
         .filter_by(status="published")
         .group_by(Article.brand)
         .all()
     )
+    brand_info = get_brand
     return [
-        {"key": brand, "label": BRAND_LABELS.get(brand, brand), "count": count}
-        for brand, count in results
+        {
+            "key": brand_slug,
+            "label": (brand_info(brand_slug) or {}).get("name", brand_slug),
+            "count": count,
+        }
+        for brand_slug, count in results
     ]
 
 

@@ -68,10 +68,13 @@ async function loadHealth() {
   }
 }
 
+let brandData = [];
+
 async function loadBrands() {
   const container = document.getElementById("brandButtons");
   try {
     const data = await fetchJson("/brands");
+    brandData = data.items;
     container.innerHTML = "";
 
     const allBtn = document.createElement("button");
@@ -83,8 +86,9 @@ async function loadBrands() {
     data.items.forEach((brand) => {
       const btn = document.createElement("button");
       btn.className = "brand-btn";
-      btn.textContent = `${brand.label} (${brand.count})`;
-      btn.addEventListener("click", () => selectBrand(brand.key));
+      btn.style.borderBottom = `3px solid ${brand.primary_color}`;
+      btn.textContent = `${brand.name} (${brand.counts.published})`;
+      btn.addEventListener("click", () => selectBrand(brand.slug));
       container.appendChild(btn);
     });
 
@@ -95,10 +99,37 @@ async function loadBrands() {
   }
 }
 
-function selectBrand(brand) {
-  activeBrand = brand;
+function selectBrand(slug) {
+  activeBrand = slug;
   currentOffset = 0;
+
+  const hero = document.querySelector(".hero");
+  const heroTitle = hero.querySelector("h1");
+  const heroSub = hero.querySelector("p");
+
+  if (slug) {
+    const brand = brandData.find((b) => b.slug === slug);
+    if (brand) {
+      heroTitle.textContent = brand.name;
+      heroSub.textContent = brand.tagline;
+      document.documentElement.style.setProperty("--brand-color", brand.primary_color);
+      hero.style.background = `linear-gradient(135deg, ${brand.primary_color}, ${lighten(brand.primary_color)})`;
+    }
+  } else {
+    heroTitle.textContent = "Next-Gen Digital Factory";
+    heroSub.textContent = "Beta surface for empire-courier.com and VillagerMediaGroup.com";
+    document.documentElement.style.setProperty("--brand-color", "var(--primary)");
+    hero.style.background = "";
+  }
+
   loadFeed(false);
+}
+
+function lighten(hex) {
+  const r = Math.min(255, parseInt(hex.slice(1, 3), 16) + 40);
+  const g = Math.min(255, parseInt(hex.slice(3, 5), 16) + 40);
+  const b = Math.min(255, parseInt(hex.slice(5, 7), 16) + 40);
+  return `rgb(${r}, ${g}, ${b})`;
 }
 
 async function loadFeed(append) {
@@ -168,17 +199,16 @@ function populateAdminBrands(brands) {
   createSelect.innerHTML = "";
   brands.forEach((b) => {
     const opt = document.createElement("option");
-    opt.value = b.key;
-    opt.textContent = b.label;
+    opt.value = b.slug;
+    opt.textContent = b.name;
     createSelect.appendChild(opt);
   });
 
-  // Keep "All Brands" option in filter
   filterSelect.innerHTML = '<option value="">All Brands</option>';
   brands.forEach((b) => {
     const opt = document.createElement("option");
-    opt.value = b.key;
-    opt.textContent = b.label;
+    opt.value = b.slug;
+    opt.textContent = b.name;
     filterSelect.appendChild(opt);
   });
 }

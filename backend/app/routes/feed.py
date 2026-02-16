@@ -1,14 +1,8 @@
 from flask import Blueprint, abort, jsonify, request
 
-from ..services.articles import MAX_LIMIT, list_brands, query_articles
+from ..services.articles import MAX_LIMIT, query_articles
 
 feed_bp = Blueprint("feed", __name__)
-
-
-@feed_bp.get("/brands")
-def brands():
-    items = list_brands()
-    return jsonify({"items": items, "count": len(items)})
 
 
 @feed_bp.get("/feed/articles")

@@ -31,16 +31,35 @@ def test_brands_endpoint():
     payload = res.get_json()
     assert res.status_code == 200
     assert payload["count"] == 2
-    keys = [b["key"] for b in payload["items"]]
-    assert "empire-courier" in keys
-    assert "villager" in keys
+    slugs = [b["slug"] for b in payload["items"]]
+    assert "empire-courier" in slugs
+    assert "villager" in slugs
 
 
-def test_brands_have_counts():
+def test_brands_have_metadata():
     res = _client().get("/api/v1/brands")
     for brand in res.get_json()["items"]:
-        assert "label" in brand
-        assert brand["count"] >= 1
+        assert "name" in brand
+        assert "tagline" in brand
+        assert "primary_color" in brand
+        assert "enabled" in brand
+        assert "counts" in brand
+        assert brand["counts"]["total"] >= 1
+
+
+def test_brand_detail():
+    res = _client().get("/api/v1/brands/empire-courier")
+    payload = res.get_json()
+    assert res.status_code == 200
+    assert payload["slug"] == "empire-courier"
+    assert payload["name"] == "Empire-Courier"
+    assert payload["primary_color"].startswith("#")
+    assert "counts" in payload
+
+
+def test_brand_detail_not_found():
+    res = _client().get("/api/v1/brands/nonexistent")
+    assert res.status_code == 404
 
 
 # --- Feed: basics ---

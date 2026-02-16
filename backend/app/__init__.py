@@ -7,6 +7,7 @@ from .config import Config
 from .db import init_db
 from .routes.admin import admin_bp
 from .routes.ai import ai_bp
+from .routes.brands import brands_bp
 from .routes.feed import feed_bp
 from .routes.health import health_bp
 
@@ -40,6 +41,7 @@ def create_app(config_class=Config) -> Flask:
     )
 
     app.register_blueprint(health_bp, url_prefix="/api/v1")
+    app.register_blueprint(brands_bp, url_prefix="/api/v1")
     app.register_blueprint(feed_bp, url_prefix="/api/v1")
     app.register_blueprint(ai_bp, url_prefix="/api/v1")
     app.register_blueprint(admin_bp, url_prefix="/api/v1")

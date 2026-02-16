@@ -33,6 +33,14 @@ make health
    - `http://127.0.0.1:8080/api/v1`
    - `http://[::1]:8080/api/v1`
 
+## Brand Identity Layer
+
+The stack serves multiple brands from a single API. Brand metadata (name, tagline, color) is defined in `backend/app/services/brand_registry.py`.
+
+- `GET /api/v1/brands` — all brands with metadata + article counts
+- `GET /api/v1/brands/<slug>` — single brand config (404 if unknown/disabled)
+- Frontend dynamically themes (header, color) when a brand is selected
+
 ## Docker Mode
 
 Run the same stack via Docker Compose (same ports, no native dependencies needed):
