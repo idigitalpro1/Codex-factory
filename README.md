@@ -33,6 +33,27 @@ make health
    - `http://127.0.0.1:8080/api/v1`
    - `http://[::1]:8080/api/v1`
 
+## Docker Mode
+
+Run the same stack via Docker Compose (same ports, no native dependencies needed):
+
+```bash
+docker compose up -d --build
+docker compose ps
+curl -sS http://127.0.0.1:8080/api/v1/health
+open http://127.0.0.1:8090
+docker compose down
+```
+
+Or use Make targets:
+
+```bash
+make docker-up
+make docker-status
+make docker-health
+make docker-down
+```
+
 ## Security Notes
 - No secrets checked into source control.
 - No hardcoded credentials.

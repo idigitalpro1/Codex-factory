@@ -13,7 +13,7 @@ FRONTEND_PID_FILE := $(ROOT_DIR)/$(RUN_DIR)/frontend.pid
 BACKEND_LOG := $(ROOT_DIR)/$(RUN_DIR)/backend.log
 FRONTEND_LOG := $(ROOT_DIR)/$(RUN_DIR)/frontend.log
 
-.PHONY: up down status health
+.PHONY: up down status health docker-up docker-down docker-status docker-health
 
 up:
 	@mkdir -p "$(RUN_DIR)"
@@ -149,3 +149,21 @@ health:
 	fi; \
 	echo "[health] selected_host=$$selected"; \
 	echo "$$payload"
+
+# --- Docker parity targets (do not alter native targets above) ---
+
+docker-up:
+	@echo "[docker-up] Building and starting containers"
+	docker compose up -d --build
+
+docker-down:
+	@echo "[docker-down] Stopping containers"
+	docker compose down
+
+docker-status:
+	@echo "[docker-status] Container state"
+	docker compose ps
+
+docker-health:
+	@echo "[docker-health] Probing backend container"
+	@curl -sS --max-time 5 http://127.0.0.1:$(BACKEND_PORT)/api/v1/health || echo "[docker-health] Backend not reachable"
