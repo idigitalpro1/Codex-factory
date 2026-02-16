@@ -1,0 +1,26 @@
+name: Stabilizer Enforce
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  enforce:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Required files exist
+        run: |
+          test -f AGENTS.md
+          test -f docs/SOURCE_OF_TRUTH.md
+          test -f Makefile || test -f Makefile.stabilizer
+
+      - name: Make targets exist
+        run: |
+          if [ -f Makefile ]; then MF=Makefile; else MF=Makefile.stabilizer; fi
+          grep -qE '^up:' "$MF"
+          grep -qE '^down:' "$MF"
+          grep -qE '^status:' "$MF"
+          grep -qE '^health:' "$MF"
