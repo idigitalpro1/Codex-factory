@@ -113,6 +113,94 @@ def test_feed_limit_clamped():
     assert payload["limit"] == 100
 
 
+# --- Admin: CRUD ---
+
+def test_admin_create_article():
+    from app.services.admin_store import reset_store
+    reset_store()
+    c = _client()
+    res = c.post("/api/v1/admin/articles", json={
+        "brand": "empire-courier",
+        "title": "Test Draft Article",
+        "body": "Some content here.",
+        "author": "Ace",
+    })
+    payload = res.get_json()
+    assert res.status_code == 201
+    assert payload["brand"] == "empire-courier"
+    assert payload["title"] == "Test Draft Article"
+    assert payload["slug"] == "test-draft-article"
+    assert payload["status"] == "draft"
+    assert payload["id"]
+
+
+def test_admin_create_missing_fields():
+    res = _client().post("/api/v1/admin/articles", json={"brand": "x"})
+    assert res.status_code == 400
+
+
+def test_admin_create_invalid_status():
+    res = _client().post("/api/v1/admin/articles", json={
+        "brand": "x", "title": "Y", "body": "Z", "status": "bogus"
+    })
+    assert res.status_code == 400
+
+
+def test_admin_list_articles():
+    from app.services.admin_store import reset_store
+    reset_store()
+    c = _client()
+    c.post("/api/v1/admin/articles", json={"brand": "villager", "title": "A", "body": "B"})
+    c.post("/api/v1/admin/articles", json={"brand": "empire-courier", "title": "C", "body": "D"})
+    res = c.get("/api/v1/admin/articles")
+    payload = res.get_json()
+    assert res.status_code == 200
+    assert payload["total"] == 2
+
+
+def test_admin_list_filter_brand():
+    from app.services.admin_store import reset_store
+    reset_store()
+    c = _client()
+    c.post("/api/v1/admin/articles", json={"brand": "villager", "title": "A", "body": "B"})
+    c.post("/api/v1/admin/articles", json={"brand": "empire-courier", "title": "C", "body": "D"})
+    res = c.get("/api/v1/admin/articles?brand=villager")
+    payload = res.get_json()
+    assert payload["total"] == 1
+    assert payload["articles"][0]["brand"] == "villager"
+
+
+def test_admin_patch_status():
+    from app.services.admin_store import reset_store
+    reset_store()
+    c = _client()
+    create_res = c.post("/api/v1/admin/articles", json={
+        "brand": "empire-courier", "title": "Publish Me", "body": "Content"
+    })
+    article_id = create_res.get_json()["id"]
+    res = c.patch(f"/api/v1/admin/articles/{article_id}", json={"status": "published"})
+    payload = res.get_json()
+    assert res.status_code == 200
+    assert payload["status"] == "published"
+
+
+def test_admin_patch_invalid_status():
+    from app.services.admin_store import reset_store
+    reset_store()
+    c = _client()
+    create_res = c.post("/api/v1/admin/articles", json={
+        "brand": "villager", "title": "X", "body": "Y"
+    })
+    article_id = create_res.get_json()["id"]
+    res = c.patch(f"/api/v1/admin/articles/{article_id}", json={"status": "bogus"})
+    assert res.status_code == 400
+
+
+def test_admin_patch_not_found():
+    res = _client().patch("/api/v1/admin/articles/nonexistent-id", json={"title": "X"})
+    assert res.status_code == 404
+
+
 # --- Mock AI ---
 
 def test_mock_ai_endpoint():
