@@ -6,6 +6,26 @@ on:
   pull_request:
 
 jobs:
+  stabilizer-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate required files
+        run: |
+          test -f AGENTS.md
+          test -f docs/SOURCE_OF_TRUTH.md
+          test -f Makefile
+          test -f docs/PLAYBOOK.md
+
+      - name: Validate Makefile targets
+        run: |
+          grep -E '^up:' Makefile
+          grep -E '^down:' Makefile
+          grep -E '^status:' Makefile
+          grep -E '^health:' Makefile
+
   backend-test:
     runs-on: ubuntu-latest
     defaults:
@@ -19,6 +39,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: "backend/requirements.txt"
 
       - name: Install deps
         run: pip install -r requirements.txt
@@ -38,9 +60,21 @@ jobs:
           test -f frontend/beta/app.js
           test -f frontend/beta/styles.css
 
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build backend image
+        run: docker build -t codex-backend:ci -f backend/Dockerfile backend
+
+      - name: Build frontend image
+        run: docker build -t codex-frontend:ci -f frontend/beta/Dockerfile frontend/beta
+
   deploy-placeholder:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    needs: [backend-test, frontend-smoke]
+    needs: [stabilizer-check, backend-test, frontend-smoke, docker-build]
     runs-on: ubuntu-latest
     steps:
       - name: Deployment gate
