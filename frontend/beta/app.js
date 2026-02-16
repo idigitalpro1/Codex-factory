@@ -5,6 +5,9 @@ const API_BASE_CANDIDATES = [
 ];
 
 let apiBase = window.API_BASE || null;
+let activeBrand = new URLSearchParams(window.location.search).get("brand") || "";
+let currentOffset = 0;
+const PAGE_SIZE = 20;
 
 async function probeApiBase(base) {
   const response = await fetch(`${base}/health`, {
@@ -65,29 +68,72 @@ async function loadHealth() {
   }
 }
 
-let activeBrand = new URLSearchParams(window.location.search).get("brand") || "";
+async function loadBrands() {
+  const container = document.getElementById("brandButtons");
+  try {
+    const data = await fetchJson("/brands");
+    container.innerHTML = "";
 
-async function loadFeed(brand) {
-  if (brand !== undefined) {
-    activeBrand = brand;
+    const allBtn = document.createElement("button");
+    allBtn.className = "brand-btn";
+    allBtn.textContent = "All";
+    allBtn.addEventListener("click", () => selectBrand(""));
+    container.appendChild(allBtn);
+
+    data.items.forEach((brand) => {
+      const btn = document.createElement("button");
+      btn.className = "brand-btn";
+      btn.textContent = `${brand.label} (${brand.count})`;
+      btn.addEventListener("click", () => selectBrand(brand.key));
+      container.appendChild(btn);
+    });
+  } catch (error) {
+    container.textContent = error.message;
   }
+}
+
+function selectBrand(brand) {
+  activeBrand = brand;
+  currentOffset = 0;
+  loadFeed(false);
+}
+
+async function loadFeed(append) {
   const list = document.getElementById("feed");
   const heading = document.getElementById("feedHeading");
-  const query = activeBrand ? `?brand=${activeBrand}` : "";
+  const loadMore = document.getElementById("loadMore");
+
+  const params = new URLSearchParams();
+  if (activeBrand) params.set("brand", activeBrand);
+  params.set("limit", PAGE_SIZE);
+  params.set("offset", currentOffset);
+  const query = `?${params.toString()}`;
+
   try {
     const data = await fetchJson(`/feed/articles${query}`);
     heading.textContent = activeBrand
-      ? `${data.brand} — ${data.count} Articles`
-      : `All Brands — ${data.count} Articles`;
-    list.innerHTML = "";
+      ? `${data.brand} — ${data.total} Articles`
+      : `All Brands — ${data.total} Articles`;
+
+    if (!append) {
+      list.innerHTML = "";
+    }
 
     data.articles.forEach((item) => {
       const li = document.createElement("li");
       li.innerHTML = `<strong>${item.brand}</strong>: ${item.title}<br><small>${item.summary}</small>`;
       list.appendChild(li);
     });
+
+    if (data.has_more) {
+      currentOffset = data.next_offset;
+      loadMore.style.display = "inline-block";
+    } else {
+      loadMore.style.display = "none";
+    }
   } catch (error) {
     list.innerHTML = `<li>${error.message}</li>`;
+    loadMore.style.display = "none";
   }
 }
 
@@ -114,13 +160,11 @@ async function init() {
   }
 
   await loadHealth();
-  await loadFeed();
+  await loadBrands();
+  await loadFeed(false);
 }
 
 document.getElementById("runAi").addEventListener("click", runMockAi);
-
-document.querySelectorAll(".brand-btn").forEach((btn) => {
-  btn.addEventListener("click", () => loadFeed(btn.dataset.brand));
-});
+document.getElementById("loadMore").addEventListener("click", () => loadFeed(true));
 
 init();

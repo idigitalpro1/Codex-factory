@@ -60,11 +60,37 @@ ARTICLES = [
 ]
 
 
+BRAND_LABELS = {
+    "empire-courier": "Empire-Courier",
+    "villager": "Villager Media Group",
+}
+
+MAX_LIMIT = 100
+DEFAULT_LIMIT = 20
+
+
 def get_articles(brand: str | None = None) -> list[dict]:
     if brand:
         return [a for a in ARTICLES if a["brand"] == brand]
     return list(ARTICLES)
 
 
-def get_sample_feed() -> list[dict]:
-    return get_articles()
+def list_brands() -> list[dict]:
+    counts: dict[str, int] = {}
+    for a in ARTICLES:
+        counts[a["brand"]] = counts.get(a["brand"], 0) + 1
+    return [
+        {"key": k, "label": BRAND_LABELS.get(k, k), "count": c}
+        for k, c in counts.items()
+    ]
+
+
+def query_articles(
+    brand: str | None = None,
+    limit: int = DEFAULT_LIMIT,
+    offset: int = 0,
+) -> tuple[list[dict], int]:
+    pool = get_articles(brand)
+    total = len(pool)
+    page = pool[offset : offset + limit]
+    return page, total
