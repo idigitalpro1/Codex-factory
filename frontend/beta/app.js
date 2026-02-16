@@ -65,15 +65,25 @@ async function loadHealth() {
   }
 }
 
-async function loadFeed() {
+let activeBrand = new URLSearchParams(window.location.search).get("brand") || "";
+
+async function loadFeed(brand) {
+  if (brand !== undefined) {
+    activeBrand = brand;
+  }
   const list = document.getElementById("feed");
+  const heading = document.getElementById("feedHeading");
+  const query = activeBrand ? `?brand=${activeBrand}` : "";
   try {
-    const data = await fetchJson("/feed/articles");
+    const data = await fetchJson(`/feed/articles${query}`);
+    heading.textContent = activeBrand
+      ? `${data.brand} — ${data.count} Articles`
+      : `All Brands — ${data.count} Articles`;
     list.innerHTML = "";
 
-    data.items.forEach((item) => {
+    data.articles.forEach((item) => {
       const li = document.createElement("li");
-      li.textContent = `${item.brand}: ${item.title}`;
+      li.innerHTML = `<strong>${item.brand}</strong>: ${item.title}<br><small>${item.summary}</small>`;
       list.appendChild(li);
     });
   } catch (error) {
@@ -108,5 +118,9 @@ async function init() {
 }
 
 document.getElementById("runAi").addEventListener("click", runMockAi);
+
+document.querySelectorAll(".brand-btn").forEach((btn) => {
+  btn.addEventListener("click", () => loadFeed(btn.dataset.brand));
+});
 
 init();
