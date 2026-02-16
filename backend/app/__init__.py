@@ -11,7 +11,19 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     app = Flask(__name__)
     app.config.from_object(config_class)
 
-    CORS(app)
+    CORS(
+        app,
+        resources={
+            r"/api/*": {
+                "origins": [
+                    "http://localhost:8090",
+                    "http://127.0.0.1:8090",
+                    "http://localhost:4173",
+                    "http://127.0.0.1:4173",
+                ]
+            }
+        },
+    )
 
     app.register_blueprint(health_bp, url_prefix="/api/v1")
     app.register_blueprint(feed_bp, url_prefix="/api/v1")
