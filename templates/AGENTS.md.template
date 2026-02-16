@@ -1,0 +1,22 @@
+# AGENTS Rules
+
+This repository follows the Dev Loop Stabilizer Kit rules.
+
+## Safety
+- No secrets or credentials in source control.
+- No sudo/elevation assumptions in automation.
+- Least-privilege command usage only.
+
+## Change Scope
+- Keep diffs narrow and task-focused.
+- Avoid unrelated refactors while stabilizing local dev.
+- Preserve existing module boundaries unless explicitly requested.
+
+## Local Lifecycle
+- Provide and maintain `make up`, `make down`, `make status`, `make health`.
+- PID files must represent active listeners, not wrapper shells.
+- Listener verification must use `lsof -tiTCP:<port> -sTCP:LISTEN`.
+
+## Validation
+- Validate local startup/shutdown behavior with deterministic commands.
+- Keep run instructions and canonical URLs documented in `docs/SOURCE_OF_TRUTH.md`.

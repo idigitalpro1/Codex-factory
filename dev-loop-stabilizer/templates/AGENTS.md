@@ -16,3 +16,8 @@ Guardrails for human + AI contributions.
 - Minimal diffs.
 - No unrelated refactors during stabilization.
 - Update docs when behavior changes.
+
+## Release Guardrail
+- Agents must not run release git commands.
+- Do not execute: `git add`, `git commit`, `git tag`, `git push`.
+- For releases, output manual commands only and stop.

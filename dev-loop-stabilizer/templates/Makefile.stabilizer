@@ -3,19 +3,23 @@ SHELL := /bin/bash
 RUN_DIR := .run
 ROOT_DIR := $(CURDIR)
 
-BACKEND_PORT ?= 8080
-FRONTEND_PORT ?= 8090
+PORTS_ENV ?= ports.env
+PORTPICK ?= ./bin/portpick.sh
+PORT_RANGE_START ?= 10000
+PORT_RANGE_END ?= 20000
+
+PREFERRED_BACKEND_PORT ?= 8080
+PREFERRED_FRONTEND_PORT ?= 8090
+
+BACKEND_START_CMD ?=
+FRONTEND_START_CMD ?= cd frontend/beta && python3 -m http.server "$${FRONTEND_PORT}"
 
 BACKEND_PID_FILE := $(ROOT_DIR)/$(RUN_DIR)/backend.pid
 FRONTEND_PID_FILE := $(ROOT_DIR)/$(RUN_DIR)/frontend.pid
 BACKEND_LOG := $(ROOT_DIR)/$(RUN_DIR)/backend.log
 FRONTEND_LOG := $(ROOT_DIR)/$(RUN_DIR)/frontend.log
 
-# REQUIRED: override per-repo (env var or Makefile include)
-BACKEND_START_CMD ?=
-FRONTEND_START_CMD ?= python3 -m http.server "$(FRONTEND_PORT)"
-
-.PHONY: up down status health _check_vars _mkdir
+.PHONY: up down status health _check_vars _mkdir _ensure_ports
 
 _check_vars:
 	@if [ -z "$(BACKEND_START_CMD)" ]; then \
@@ -23,109 +27,142 @@ _check_vars:
 		echo "  BACKEND_START_CMD='cd backend && .venv/bin/python run.py' make up"; \
 		exit 1; \
 	fi
+	@if [ ! -x "$(PORTPICK)" ]; then \
+		echo "[error] Missing executable port picker: $(PORTPICK)"; \
+		exit 1; \
+	fi
 
 _mkdir:
 	@mkdir -p "$(RUN_DIR)"
 
-up: _check_vars _mkdir
-	@backend_listener_pid=$$(lsof -tiTCP:$(BACKEND_PORT) -sTCP:LISTEN 2>/dev/null | head -n1); \
+_ensure_ports:
+	@if [ ! -f "$(PORTS_ENV)" ]; then \
+		backend_port=$$($(PORTPICK) $(PREFERRED_BACKEND_PORT) $(PORT_RANGE_START) $(PORT_RANGE_END)); \
+		frontend_port=$$($(PORTPICK) $(PREFERRED_FRONTEND_PORT) $(PORT_RANGE_START) $(PORT_RANGE_END)); \
+		while [ "$$frontend_port" = "$$backend_port" ]; do \
+			frontend_port=$$($(PORTPICK) $$((frontend_port + 1)) $(PORT_RANGE_START) $(PORT_RANGE_END)); \
+		done; \
+		{ \
+			echo "BACKEND_HOST=localhost"; \
+			echo "BACKEND_PORT=$$backend_port"; \
+			echo "FRONTEND_PORT=$$frontend_port"; \
+		} > "$(PORTS_ENV)"; \
+		echo "[ports] wrote $(PORTS_ENV) (backend=$$backend_port frontend=$$frontend_port)"; \
+	fi
+
+up: _check_vars _mkdir _ensure_ports
+	@set -e; \
+	set -a; . "$(PORTS_ENV)"; set +a; \
+	write_ports() { \
+		{ \
+			echo "BACKEND_HOST=$$BACKEND_HOST"; \
+			echo "BACKEND_PORT=$$BACKEND_PORT"; \
+			echo "FRONTEND_PORT=$$FRONTEND_PORT"; \
+		} > "$(PORTS_ENV)"; \
+	}; \
+	backend_listener_pid=$$(lsof -tiTCP:"$$BACKEND_PORT" -sTCP:LISTEN 2>/dev/null | head -n1); \
+	backend_known_pid=$$(cat "$(BACKEND_PID_FILE)" 2>/dev/null || true); \
+	if [ -n "$$backend_listener_pid" ] && [ "$$backend_listener_pid" != "$$backend_known_pid" ]; then \
+		new_backend_port=$$($(PORTPICK) $$((BACKEND_PORT + 1)) $(PORT_RANGE_START) $(PORT_RANGE_END)); \
+		echo "[ports] backend port $$BACKEND_PORT occupied by pid $$backend_listener_pid, renegotiated to $$new_backend_port"; \
+		BACKEND_PORT="$$new_backend_port"; \
+		write_ports; \
+		backend_listener_pid=""; \
+	fi; \
 	if [ -n "$$backend_listener_pid" ]; then \
-		echo "[up] Backend port $(BACKEND_PORT) already in use by pid $$backend_listener_pid"; \
-		echo "[up] Run 'make down' (if owned) or free the port."; \
-		exit 1; \
-	fi
-	@echo "[up] Starting backend on http://localhost:$(BACKEND_PORT)"
-	@nohup bash -lc '$(BACKEND_START_CMD)' > "$(BACKEND_LOG)" 2>&1 & \
-	sleep 1; \
-	backend_listener_pid=$$(lsof -tiTCP:$(BACKEND_PORT) -sTCP:LISTEN 2>/dev/null | head -n1); \
-	if [ -z "$$backend_listener_pid" ]; then \
-		echo "[up] Backend failed to start. Tail logs:"; \
-		tail -n 60 "$(BACKEND_LOG)" || true; \
-		exit 1; \
+		echo "[up] Backend already running (pid $$backend_listener_pid)"; \
+	else \
+		echo "[up] Starting backend on http://$$BACKEND_HOST:$$BACKEND_PORT"; \
+		BACKEND_HOST="$$BACKEND_HOST" BACKEND_PORT="$$BACKEND_PORT" FRONTEND_PORT="$$FRONTEND_PORT" nohup bash -lc '$(BACKEND_START_CMD)' > "$(BACKEND_LOG)" 2>&1 & \
+		sleep 1; \
+		backend_listener_pid=$$(lsof -tiTCP:"$$BACKEND_PORT" -sTCP:LISTEN 2>/dev/null | head -n1); \
+		if [ -z "$$backend_listener_pid" ]; then \
+			echo "[up] Backend failed to start"; \
+			tail -n 60 "$(BACKEND_LOG)" || true; \
+			exit 1; \
+		fi; \
+		echo "$$backend_listener_pid" > "$(BACKEND_PID_FILE)"; \
+		echo "[up] Backend started (pid $$backend_listener_pid)"; \
 	fi; \
-	echo "$$backend_listener_pid" > "$(BACKEND_PID_FILE)"; \
-	echo "[up] Backend started (pid $$backend_listener_pid)"
-
-	@frontend_listener_pid=$$(lsof -tiTCP:$(FRONTEND_PORT) -sTCP:LISTEN 2>/dev/null | head -n1); \
+	frontend_listener_pid=$$(lsof -tiTCP:"$$FRONTEND_PORT" -sTCP:LISTEN 2>/dev/null | head -n1); \
+	frontend_known_pid=$$(cat "$(FRONTEND_PID_FILE)" 2>/dev/null || true); \
+	if [ -n "$$frontend_listener_pid" ] && [ "$$frontend_listener_pid" != "$$frontend_known_pid" ]; then \
+		new_frontend_port=$$($(PORTPICK) $$((FRONTEND_PORT + 1)) $(PORT_RANGE_START) $(PORT_RANGE_END)); \
+		echo "[ports] frontend port $$FRONTEND_PORT occupied by pid $$frontend_listener_pid, renegotiated to $$new_frontend_port"; \
+		FRONTEND_PORT="$$new_frontend_port"; \
+		write_ports; \
+		frontend_listener_pid=""; \
+	fi; \
 	if [ -n "$$frontend_listener_pid" ]; then \
-		echo "[up] Frontend port $(FRONTEND_PORT) already in use by pid $$frontend_listener_pid"; \
-		echo "[up] Run 'make down' (if owned) or free the port."; \
-		exit 1; \
-	fi
-	@echo "[up] Starting frontend on http://localhost:$(FRONTEND_PORT)"
-	@nohup bash -lc '$(FRONTEND_START_CMD)' > "$(FRONTEND_LOG)" 2>&1 & \
-	sleep 1; \
-	frontend_listener_pid=$$(lsof -tiTCP:$(FRONTEND_PORT) -sTCP:LISTEN 2>/dev/null | head -n1); \
-	if [ -z "$$frontend_listener_pid" ]; then \
-		echo "[up] Frontend failed to start. Tail logs:"; \
-		tail -n 60 "$(FRONTEND_LOG)" || true; \
-		exit 1; \
-	fi; \
-	echo "$$frontend_listener_pid" > "$(FRONTEND_PID_FILE)"; \
-	echo "[up] Frontend started (pid $$frontend_listener_pid)"
-
-	@echo "[up] Logs:"
-	@echo "  Backend:  $(BACKEND_LOG)"
-	@echo "  Frontend: $(FRONTEND_LOG)"
-
-down: _mkdir
-	@backend_pid=$$(cat "$(BACKEND_PID_FILE)" 2>/dev/null || true); \
-	if [ -z "$$backend_pid" ]; then backend_pid=$$(lsof -tiTCP:$(BACKEND_PORT) -sTCP:LISTEN 2>/dev/null | head -n1); fi; \
-	if [ -n "$$backend_pid" ]; then \
-		echo "[down] Stopping backend (pid $$backend_pid)"; \
-		kill "$$backend_pid" 2>/dev/null || true; \
-		for _ in $$(seq 1 25); do \
-			cur=$$(lsof -tiTCP:$(BACKEND_PORT) -sTCP:LISTEN 2>/dev/null | head -n1); \
-			[ "$$cur" != "$$backend_pid" ] && break; \
-			sleep 0.1; \
-		done; \
-		cur=$$(lsof -tiTCP:$(BACKEND_PORT) -sTCP:LISTEN 2>/dev/null | head -n1); \
-		if [ "$$cur" = "$$backend_pid" ]; then echo "[down] Backend still listening on :$(BACKEND_PORT)"; exit 1; fi; \
-		echo "[down] Backend stopped"; \
+		echo "[up] Frontend already running (pid $$frontend_listener_pid)"; \
 	else \
-		echo "[down] Backend not running"; \
+		echo "[up] Starting frontend on http://localhost:$$FRONTEND_PORT"; \
+		BACKEND_HOST="$$BACKEND_HOST" BACKEND_PORT="$$BACKEND_PORT" FRONTEND_PORT="$$FRONTEND_PORT" nohup bash -lc '$(FRONTEND_START_CMD)' > "$(FRONTEND_LOG)" 2>&1 & \
+		sleep 1; \
+		frontend_listener_pid=$$(lsof -tiTCP:"$$FRONTEND_PORT" -sTCP:LISTEN 2>/dev/null | head -n1); \
+		if [ -z "$$frontend_listener_pid" ]; then \
+			echo "[up] Frontend failed to start"; \
+			tail -n 60 "$(FRONTEND_LOG)" || true; \
+			exit 1; \
+		fi; \
+		echo "$$frontend_listener_pid" > "$(FRONTEND_PID_FILE)"; \
+		echo "[up] Frontend started (pid $$frontend_listener_pid)"; \
 	fi
 
-	@frontend_pid=$$(cat "$(FRONTEND_PID_FILE)" 2>/dev/null || true); \
-	if [ -z "$$frontend_pid" ]; then frontend_pid=$$(lsof -tiTCP:$(FRONTEND_PORT) -sTCP:LISTEN 2>/dev/null | head -n1); fi; \
-	if [ -n "$$frontend_pid" ]; then \
-		echo "[down] Stopping frontend (pid $$frontend_pid)"; \
-		kill "$$frontend_pid" 2>/dev/null || true; \
-		for _ in $$(seq 1 25); do \
-			cur=$$(lsof -tiTCP:$(FRONTEND_PORT) -sTCP:LISTEN 2>/dev/null | head -n1); \
-			[ "$$cur" != "$$frontend_pid" ] && break; \
-			sleep 0.1; \
-		done; \
-		cur=$$(lsof -tiTCP:$(FRONTEND_PORT) -sTCP:LISTEN 2>/dev/null | head -n1); \
-		if [ "$$cur" = "$$frontend_pid" ]; then echo "[down] Frontend still listening on :$(FRONTEND_PORT)"; exit 1; fi; \
-		echo "[down] Frontend stopped"; \
-	else \
-		echo "[down] Frontend not running"; \
-	fi
-
-	@rm -f "$(BACKEND_PID_FILE)" "$(FRONTEND_PID_FILE)"
-
-status: _mkdir
-	@echo "[status] Backend port $(BACKEND_PORT)"
-	@lsof -nP -iTCP:$(BACKEND_PORT) -sTCP:LISTEN || true
-	@echo "[status] Frontend port $(FRONTEND_PORT)"
-	@lsof -nP -iTCP:$(FRONTEND_PORT) -sTCP:LISTEN || true
-	@b=$$(lsof -tiTCP:$(BACKEND_PORT) -sTCP:LISTEN 2>/dev/null | head -n1); \
-	f=$$(lsof -tiTCP:$(FRONTEND_PORT) -sTCP:LISTEN 2>/dev/null | head -n1); \
+status: _mkdir _ensure_ports
+	@set -a; . "$(PORTS_ENV)"; set +a; \
+	echo "[status] BACKEND_HOST=$$BACKEND_HOST"; \
+	echo "[status] BACKEND_PORT=$$BACKEND_PORT"; \
+	echo "[status] FRONTEND_PORT=$$FRONTEND_PORT"; \
+	echo "[status] Backend listener"; \
+	lsof -nP -iTCP:"$$BACKEND_PORT" -sTCP:LISTEN || true; \
+	echo "[status] Frontend listener"; \
+	lsof -nP -iTCP:"$$FRONTEND_PORT" -sTCP:LISTEN || true; \
+	b=$$(lsof -tiTCP:"$$BACKEND_PORT" -sTCP:LISTEN 2>/dev/null | head -n1); \
+	f=$$(lsof -tiTCP:"$$FRONTEND_PORT" -sTCP:LISTEN 2>/dev/null | head -n1); \
 	[ -n "$$b" ] && echo "$$b" > "$(BACKEND_PID_FILE)" || rm -f "$(BACKEND_PID_FILE)"; \
 	[ -n "$$f" ] && echo "$$f" > "$(FRONTEND_PID_FILE)" || rm -f "$(FRONTEND_PID_FILE)"; \
 	echo "[status] backend.pid=$${b:-none}"; \
 	echo "[status] frontend.pid=$${f:-none}"
 
-health:
-	@echo "[health] Probing http://<loopback>:$(BACKEND_PORT)/api/v1/health"
-	@selected=""; payload=""; \
-	for host in localhost 127.0.0.1 '[::1]'; do \
-		url="http://$$host:$(BACKEND_PORT)/api/v1/health"; \
+down: _mkdir _ensure_ports
+	@set -a; . "$(PORTS_ENV)"; set +a; \
+	for svc in backend frontend; do \
+		if [ "$$svc" = "backend" ]; then port="$$BACKEND_PORT"; pid_file="$(BACKEND_PID_FILE)"; label="Backend"; else port="$$FRONTEND_PORT"; pid_file="$(FRONTEND_PID_FILE)"; label="Frontend"; fi; \
+		pid=$$(cat "$$pid_file" 2>/dev/null || true); \
+		if [ -z "$$pid" ]; then pid=$$(lsof -tiTCP:"$$port" -sTCP:LISTEN 2>/dev/null | head -n1); fi; \
+		if [ -n "$$pid" ]; then \
+			echo "[down] Stopping $$label (pid $$pid)"; \
+			kill "$$pid" 2>/dev/null || true; \
+			for _ in $$(seq 1 25); do cur=$$(lsof -tiTCP:"$$port" -sTCP:LISTEN 2>/dev/null | head -n1); [ "$$cur" != "$$pid" ] && break; sleep 0.1; done; \
+			cur=$$(lsof -tiTCP:"$$port" -sTCP:LISTEN 2>/dev/null | head -n1); \
+			if [ "$$cur" = "$$pid" ]; then echo "[down] $$label still listening on :$$port"; exit 1; fi; \
+			echo "[down] $$label stopped"; \
+		else \
+			echo "[down] $$label not running"; \
+		fi; \
+	done
+	@rm -f "$(BACKEND_PID_FILE)" "$(FRONTEND_PID_FILE)"
+
+health: _ensure_ports
+	@set -a; . "$(PORTS_ENV)"; set +a; \
+	echo "[health] Probing backend on $$BACKEND_HOST:$$BACKEND_PORT"; \
+	echo "[health] listener check for :$$BACKEND_PORT"; \
+	lsof -nP -iTCP:"$$BACKEND_PORT" -sTCP:LISTEN || true; \
+	selected=""; payload=""; \
+	for host in "$$BACKEND_HOST" localhost 127.0.0.1 '[::1]'; do \
+		url="http://$$host:$$BACKEND_PORT/api/v1/health"; \
 		if out=$$(curl -sS --max-time 2 "$$url" 2>/dev/null); then \
-			selected="$$host"; payload="$$out"; break; \
+			if echo "$$out" | grep -q '"status"'; then \
+				selected="$$host"; payload="$$out"; break; \
+			fi; \
 		fi; \
 	done; \
-	if [ -z "$$selected" ]; then echo "[health] FAIL: no reachable health endpoint"; exit 1; fi; \
+	if [ -z "$$selected" ]; then \
+		echo "[health] FAIL: no health JSON from any loopback host"; \
+		echo "[health] backend log tail"; \
+		tail -n 30 "$(BACKEND_LOG)" 2>/dev/null || true; \
+		exit 1; \
+	fi; \
 	echo "[health] OK selected_host=$$selected"; \
 	echo "$$payload"

@@ -13,5 +13,4 @@ Default URLs:
 - Frontend: http://localhost:8090
 - Backend health: http://localhost:8080/api/v1/health
 
-Notes:
-- Uses `ports.env` for persisted selected ports when conflicts exist.
+Ports are persisted in `ports.env`; conflicts trigger renegotiation and rewrite.

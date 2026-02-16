@@ -1,0 +1,30 @@
+# Source Of Truth
+
+## Purpose
+Canonical reference for local runtime behavior, ports, and lifecycle commands.
+
+## Canonical Ports
+- Backend API: `8080`
+- Frontend static app: `8090`
+
+## Canonical URLs
+- Frontend: `http://localhost:8090`
+- Backend health: `http://localhost:8080/api/v1/health`
+- Backend feed: `http://localhost:8080/api/v1/feed/articles`
+- Backend mock AI: `http://localhost:8080/api/v1/ai/mock`
+
+## Lifecycle Commands
+From repo root:
+```bash
+make down || true
+make up
+make status
+make health
+```
+
+## Validation Rules
+- PID files:
+  - `.run/backend.pid`
+  - `.run/frontend.pid`
+- Authoritative PID source: `lsof -tiTCP:<port> -sTCP:LISTEN | head -n1`
+- Do not silently reuse unknown processes occupying required ports.

@@ -15,11 +15,11 @@ jobs:
         run: |
           test -f AGENTS.md
           test -f docs/SOURCE_OF_TRUTH.md
-          test -f Makefile || test -f Makefile.stabilizer
+          test -f Makefile || test -f Makefile.stabilizer || test -f Makefile.node-vite
 
       - name: Make targets exist
         run: |
-          if [ -f Makefile ]; then MF=Makefile; else MF=Makefile.stabilizer; fi
+          if [ -f Makefile ]; then MF=Makefile; elif [ -f Makefile.stabilizer ]; then MF=Makefile.stabilizer; else MF=Makefile.node-vite; fi
           grep -qE '^up:' "$MF"
           grep -qE '^down:' "$MF"
           grep -qE '^status:' "$MF"

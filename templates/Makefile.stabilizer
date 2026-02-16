@@ -1,0 +1,48 @@
+SHELL := /bin/bash
+
+BACKEND_DIR ?= backend
+FRONTEND_DIR ?= frontend/beta
+RUN_DIR ?= .run
+
+BACKEND_PORT ?= 8080
+FRONTEND_PORT ?= 8090
+
+BACKEND_PID_FILE := $(RUN_DIR)/backend.pid
+FRONTEND_PID_FILE := $(RUN_DIR)/frontend.pid
+BACKEND_LOG := $(RUN_DIR)/backend.log
+FRONTEND_LOG := $(RUN_DIR)/frontend.log
+
+.PHONY: up down status health
+
+up:
+	@mkdir -p "$(RUN_DIR)"
+	@backend_listener=$$(lsof -tiTCP:$(BACKEND_PORT) -sTCP:LISTEN | head -n1); \
+	if [ -n "$$backend_listener" ]; then \
+		echo "[up] backend port $(BACKEND_PORT) already in use by $$backend_listener"; \
+		exit 1; \
+	fi
+	@frontend_listener=$$(lsof -tiTCP:$(FRONTEND_PORT) -sTCP:LISTEN | head -n1); \
+	if [ -n "$$frontend_listener" ]; then \
+		echo "[up] frontend port $(FRONTEND_PORT) already in use by $$frontend_listener"; \
+		exit 1; \
+	fi
+	@echo "[up] define project-specific startup commands here"
+
+down:
+	@echo "[down] define project-specific shutdown commands here"
+
+status:
+	@echo "[status] backend $(BACKEND_PORT)" && lsof -nP -iTCP:$(BACKEND_PORT) -sTCP:LISTEN || true
+	@echo "[status] frontend $(FRONTEND_PORT)" && lsof -nP -iTCP:$(FRONTEND_PORT) -sTCP:LISTEN || true
+
+health:
+	@for host in localhost 127.0.0.1 '[::1]'; do \
+		url="http://$$host:$(BACKEND_PORT)/api/v1/health"; \
+		if out=$$(curl -sS --max-time 2 "$$url" 2>/dev/null); then \
+			echo "[health] selected_host=$$host"; \
+			echo "$$out"; \
+			exit 0; \
+		fi; \
+	done; \
+	echo "[health] no reachable host"; \
+	exit 1
