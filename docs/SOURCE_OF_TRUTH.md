@@ -5,6 +5,52 @@ Next-Gen Digital Factory monorepo for:
 - empire-courier.com
 - VillagerMediaGroup.com
 
+## Production
+- **Domain:** `https://5280.menu`
+- **Server:** AWS Lightsail `44.236.197.183` (instance: `mmtkplesk`)
+- **Platform:** Plesk (Apache-only mode, SSL via Let's Encrypt)
+
+### Routing
+```
+HTTPS (443) → Plesk/Apache → reverse proxy:
+  /api/*  → Docker backend  (127.0.0.1:8080)
+  /*      → Docker frontend (127.0.0.1:8090)
+
+HTTP (80) → 301 redirect to HTTPS
+```
+
+### Ports (Lightsail Firewall)
+| Port | Status | Purpose |
+|------|--------|---------|
+| 443  | Open   | HTTPS (production traffic) |
+| 80   | Open   | HTTP redirect to HTTPS |
+| 8080 | Closed | Backend (internal only) |
+| 8090 | Closed | Frontend (internal only) |
+
+### Production Endpoints
+- Health: `https://5280.menu/api/v1/health`
+- Brands: `https://5280.menu/api/v1/brands`
+- Feed: `https://5280.menu/api/v1/feed/articles`
+- Admin: `https://5280.menu/api/v1/admin/articles`
+- Frontend: `https://5280.menu`
+
+### Stack
+- **Backend:** Flask + SQLAlchemy + SQLite (`backend/data/app.db`)
+- **Frontend:** Static HTML/JS/CSS served by nginx (Alpine)
+- **Containers:** Docker Compose at `~/apps/codex-factory` on server
+- **SSL:** Managed by Plesk (Let's Encrypt)
+- **Proxy config:** `/var/www/vhosts/system/5280.menu/conf/vhost_ssl.conf`
+
+### Deploy (on server)
+```bash
+cd ~/apps/codex-factory
+git pull --ff-only
+docker compose build --no-cache
+docker compose up -d
+docker compose ps
+curl -sS http://127.0.0.1:8080/api/v1/health
+```
+
 ## Canonical Local Runtime
 - Backend API: `http://localhost:8080`
 - Backend Health: `http://localhost:8080/api/v1/health`
@@ -48,3 +94,14 @@ make health
 - No secrets in repository.
 - No hardcoded credentials.
 - Use environment variables and cloud identity/OIDC for deployment.
+
+## Version Timeline
+```
+v1-local-stable       — Native stack freeze
+v2-ci-aligned         — Docker + CI gates
+v3-product-slice      — Public feed + admin write path
+v4-sqlite-persistence — SQLite persistence
+v5-admin-ui           — Frontend admin panel
+v6-brand-identity     — Brand registry + metadata + themed UI
+Production Live       — 5280.menu SSL reverse proxy (Lightsail/Plesk)
+```
