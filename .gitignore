@@ -11,3 +11,7 @@ backend/data/
 __pycache__/
 *.pyc
 .env.local
+# Vendor / asset archives (do not commit extracted zips)
+Dashtail/
+*.zip
+themeforest-*/
