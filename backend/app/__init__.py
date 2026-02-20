@@ -10,6 +10,7 @@ from .routes.ai import ai_bp
 from .routes.brands import brands_bp
 from .routes.feed import feed_bp
 from .routes.health import health_bp
+from .routes.billing import billing_bp
 from .routes.ops_domains import ops_domains_bp
 
 
@@ -51,5 +52,6 @@ def create_app(config_class=Config) -> Flask:
     app.register_blueprint(ai_bp, url_prefix="/api/v1")
     app.register_blueprint(admin_bp, url_prefix="/api/v1")
     app.register_blueprint(ops_domains_bp, url_prefix="/api/v1")
+    app.register_blueprint(billing_bp, url_prefix="/api/v1")
 
     return app

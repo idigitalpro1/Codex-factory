@@ -39,6 +39,61 @@ class Article(db.Model):
         }
 
 
+class Invoice(db.Model):
+    __tablename__ = "invoices"
+
+    id                   = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    date                 = db.Column(db.String(10), nullable=False)
+    client               = db.Column(db.String(200), nullable=False)
+    email                = db.Column(db.String(200), nullable=False, default="")
+    type                 = db.Column(db.String(50), nullable=False, default="Classified Ad")
+    description          = db.Column(db.Text, nullable=False, default="")
+    amount               = db.Column(db.Float, nullable=False, default=0.0)
+    status               = db.Column(db.String(20), nullable=False, default="draft", index=True)
+    publication          = db.Column(db.String(100), nullable=False, default="Register-Call")
+    run_dates            = db.Column(db.Text, nullable=False, default="[]")
+    line_count           = db.Column(db.Integer, nullable=False, default=1)
+    runs                 = db.Column(db.Integer, nullable=False, default=1)
+    first_line_rate      = db.Column(db.Float, nullable=False, default=0.43)
+    additional_line_rate = db.Column(db.Float, nullable=False, default=0.38)
+    origination_fee      = db.Column(db.Float, nullable=False, default=25.0)
+    is_arapahoe_county   = db.Column(db.Boolean, nullable=False, default=False)
+    pdf_url              = db.Column(db.String(500), nullable=True)
+    stripe_link          = db.Column(db.String(500), nullable=True)
+    email_sent           = db.Column(db.String(50), nullable=True)
+    paid_date            = db.Column(db.String(10), nullable=True)
+    notes                = db.Column(db.Text, nullable=True)
+    created_at           = db.Column(db.DateTime(timezone=True), nullable=False, default=_utcnow)
+    updated_at           = db.Column(db.DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow)
+
+    def to_dict(self):
+        return {
+            "id":                  self.id,
+            "date":                self.date,
+            "client":              self.client,
+            "email":               self.email,
+            "type":                self.type,
+            "description":         self.description,
+            "amount":              round(self.amount, 2),
+            "status":              self.status,
+            "publication":         self.publication,
+            "runDates":            self.run_dates,
+            "lineCount":           self.line_count,
+            "runs":                self.runs,
+            "firstLineRate":       self.first_line_rate,
+            "additionalLineRate":  self.additional_line_rate,
+            "originationFee":      self.origination_fee,
+            "isArapahoeCounty":    self.is_arapahoe_county,
+            "pdfUrl":              self.pdf_url or "",
+            "stripeLink":          self.stripe_link or "",
+            "emailSent":           self.email_sent or "",
+            "paidDate":            self.paid_date or "",
+            "notes":               self.notes or "",
+            "created_at":          self.created_at.isoformat(),
+            "updated_at":          self.updated_at.isoformat(),
+        }
+
+
 class OpsDomain(db.Model):
     __tablename__ = "ops_domains"
 
