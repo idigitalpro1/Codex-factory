@@ -37,3 +37,44 @@ class Article(db.Model):
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
+
+
+class OpsDomain(db.Model):
+    __tablename__ = "ops_domains"
+
+    id           = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    domain       = db.Column(db.String(253), unique=True, nullable=False)
+    registrar    = db.Column(db.String(100), nullable=True)
+    dns_provider = db.Column(db.String(100), nullable=True)
+    expected_ip  = db.Column(db.String(45), nullable=False, default="44.236.197.183")
+    homepage_url = db.Column(db.String(500), nullable=True)
+    health_url   = db.Column(db.String(500), nullable=True)
+    notes        = db.Column(db.Text, nullable=True)
+    tags         = db.Column(db.Text, nullable=True)  # JSON string
+    brand_slug   = db.Column(db.String(100), nullable=True)
+    has_logo     = db.Column(db.Boolean, nullable=False, default=False)
+    has_favicon  = db.Column(db.Boolean, nullable=False, default=False)
+    has_og_image = db.Column(db.Boolean, nullable=False, default=False)
+    has_masthead = db.Column(db.Boolean, nullable=False, default=False)
+    created_at   = db.Column(db.DateTime(timezone=True), nullable=False, default=_utcnow)
+    updated_at   = db.Column(db.DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow)
+
+    def to_dict(self):
+        return {
+            "id":           self.id,
+            "domain":       self.domain,
+            "brand_slug":   self.brand_slug or "",
+            "registrar":    self.registrar,
+            "dns_provider": self.dns_provider,
+            "expected_ip":  self.expected_ip,
+            "homepage_url": self.homepage_url,
+            "health_url":   self.health_url,
+            "notes":        self.notes,
+            "tags":         self.tags,
+            "has_logo":     self.has_logo,
+            "has_favicon":  self.has_favicon,
+            "has_og_image": self.has_og_image,
+            "has_masthead": self.has_masthead,
+            "created_at":   self.created_at.isoformat(),
+            "updated_at":   self.updated_at.isoformat(),
+        }

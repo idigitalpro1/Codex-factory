@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Domain Ops Dashboard — Codex Factory</title>
+  <link rel="stylesheet" href="../../../styles.css" />
+  <style>
+    .tab-bar {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 0.5rem;
+    }
+    .tab-bar button {
+      background: none;
+      border: 2px solid transparent;
+      color: var(--muted);
+      padding: 0.4rem 0.9rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      margin: 0;
+    }
+    .tab-bar button.active {
+      background: var(--primary);
+      color: #fff;
+      border-color: var(--primary);
+    }
+    .domains-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+    }
+    .domains-table th {
+      text-align: left;
+      padding: 0.5rem 0.6rem;
+      border-bottom: 2px solid var(--border);
+      color: var(--muted);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .domains-table td {
+      padding: 0.55rem 0.6rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    .domains-table tr:hover td {
+      background: #f0f4ff;
+    }
+    .dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 5px;
+      vertical-align: middle;
+    }
+    .dot-green  { background: #16a34a; }
+    .dot-yellow { background: #d97706; }
+    .dot-red    { background: #dc2626; }
+    .dot-grey   { background: #9ca3af; }
+    .check-pass { color: #16a34a; font-weight: 600; }
+    .check-fail { color: #dc2626; }
+    .score-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-weight: 600;
+      font-size: 0.85rem;
+    }
+    .edit-btn {
+      font-size: 0.8rem;
+      padding: 0.3rem 0.6rem;
+      margin: 0;
+    }
+    /* Drawer */
+    #drawer-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.25);
+      z-index: 100;
+    }
+    #edit-drawer {
+      position: fixed;
+      top: 0;
+      right: -420px;
+      width: 400px;
+      height: 100%;
+      background: var(--panel);
+      border-left: 1px solid var(--border);
+      box-shadow: -4px 0 20px rgba(0,0,0,0.1);
+      padding: 1.5rem;
+      overflow-y: auto;
+      transition: right 0.25s ease;
+      z-index: 101;
+    }
+    #edit-drawer.open { right: 0; }
+    #edit-drawer h3 { margin-top: 0; }
+    #edit-drawer label {
+      display: block;
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 0.25rem;
+      margin-top: 0.75rem;
+    }
+    #edit-drawer textarea,
+    #edit-drawer input[type="text"] {
+      width: 100%;
+      padding: 0.5rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 0.875rem;
+    }
+    .flag-row {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-top: 0.5rem;
+    }
+    .flag-row label {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.875rem;
+      color: var(--text);
+      margin: 0;
+    }
+    .drawer-actions {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 1.5rem;
+    }
+    .drawer-actions button { margin: 0; }
+    .btn-secondary {
+      background: #e5e7eb;
+      color: var(--text);
+    }
+    .col-dns     { }
+    .col-routing { }
+    .col-cms     { }
+    .col-artwork { }
+    .hidden { display: none; }
+    .search-wrap {
+      position: relative;
+      flex: 1;
+    }
+    .search-wrap input {
+      width: 100%;
+      padding: 0.55rem 0.7rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 0.9rem;
+    }
+    .empty-row td {
+      text-align: center;
+      color: var(--muted);
+      padding: 2rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="hero">
+    <div class="container" style="margin:0 auto;padding:0 1rem;">
+      <a href="/" style="color:rgba(255,255,255,0.7);font-size:0.85rem;text-decoration:none;">← Codex Factory</a>
+      <h1 style="margin:0.4rem 0 0.2rem;">Domain Ops Dashboard</h1>
+      <p style="margin:0;opacity:0.8;font-size:0.9rem;">DNS · Routing · CMS · Artwork readiness</p>
+    </div>
+  </div>
+
+  <div class="container">
+    <section class="admin-panel">
+      <div class="admin-controls" style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;flex-wrap:wrap;">
+        <div class="search-wrap">
+          <input id="search" type="text" placeholder="Filter domains…" oninput="filterTable()" />
+        </div>
+        <button id="refresh-btn" onclick="loadDomains()">↺ Refresh Checks</button>
+      </div>
+
+      <div class="tab-bar">
+        <button class="active" onclick="setTab('all', this)">All</button>
+        <button onclick="setTab('dns', this)">DNS</button>
+        <button onclick="setTab('routing', this)">Routing</button>
+        <button onclick="setTab('cms', this)">CMS</button>
+        <button onclick="setTab('artwork', this)">Artwork</button>
+      </div>
+
+      <div style="overflow-x:auto;">
+        <table class="domains-table">
+          <thead>
+            <tr>
+              <th>Domain</th>
+              <th>Score</th>
+              <th class="col-routing">Routing</th>
+              <th class="col-routing">API</th>
+              <th class="col-cms">CMS</th>
+              <th class="col-dns">DNS</th>
+              <th class="col-artwork">Artwork</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="domains-tbody">
+            <tr class="empty-row"><td colspan="8">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <!-- Drawer overlay -->
+  <div id="drawer-overlay" onclick="closeDrawer()"></div>
+
+  <!-- Edit drawer -->
+  <div id="edit-drawer">
+    <h3 id="drawer-title">Edit Domain</h3>
+    <input type="hidden" id="drawer-id" />
+
+    <label>Notes</label>
+    <textarea id="drawer-notes" rows="4"></textarea>
+
+    <label>Registrar</label>
+    <input type="text" id="drawer-registrar" />
+
+    <label>DNS Provider</label>
+    <input type="text" id="drawer-dns-provider" />
+
+    <label>Expected IP</label>
+    <input type="text" id="drawer-expected-ip" />
+
+    <label>Homepage URL</label>
+    <input type="text" id="drawer-homepage-url" />
+
+    <label>Health URL</label>
+    <input type="text" id="drawer-health-url" />
+
+    <label>Artwork flags</label>
+    <div class="flag-row">
+      <label><input type="checkbox" id="flag-logo" /> Logo</label>
+      <label><input type="checkbox" id="flag-favicon" /> Favicon</label>
+      <label><input type="checkbox" id="flag-og" /> OG Image</label>
+      <label><input type="checkbox" id="flag-masthead" /> Masthead</label>
+    </div>
+
+    <div class="drawer-actions">
+      <button id="drawer-save" onclick="saveDrawer()">Save</button>
+      <button class="btn-secondary" onclick="closeDrawer()">Cancel</button>
+    </div>
+    <pre id="drawer-log" style="font-size:0.75rem;color:var(--muted);margin-top:1rem;white-space:pre-wrap;"></pre>
+  </div>
+
+  <script>
+    const API_BASE_CANDIDATES = [
+      "http://localhost:8080/api/v1",
+      "http://127.0.0.1:8080/api/v1",
+    ];
+    let apiBase = null;
+    let allDomains = [];
+    let currentTab = "all";
+
+    async function resolveApiBase() {
+      for (const candidate of API_BASE_CANDIDATES) {
+        try {
+          const res = await fetch(`${candidate}/health`, { signal: AbortSignal.timeout(2000) });
+          if (res.ok) { apiBase = candidate; return; }
+        } catch (_) {}
+      }
+      // Production: use relative path through Plesk proxy
+      apiBase = "/api/v1";
+    }
+
+    async function fetchJson(path, options = {}) {
+      if (!apiBase) await resolveApiBase();
+      const res = await fetch(`${apiBase}${path}`, {
+        headers: { "Content-Type": "application/json" },
+        ...options,
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    }
+
+    async function loadDomains() {
+      const btn = document.getElementById("refresh-btn");
+      btn.disabled = true;
+      btn.textContent = "Checking…";
+      try {
+        const data = await fetchJson("/admin/ops/domains?limit=100");
+        allDomains = data.domains || [];
+        renderTable();
+      } catch (err) {
+        document.getElementById("domains-tbody").innerHTML =
+          `<tr class="empty-row"><td colspan="8">Error: ${err.message}</td></tr>`;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "↺ Refresh Checks";
+      }
+    }
+
+    function setTab(tab, el) {
+      currentTab = tab;
+      document.querySelectorAll(".tab-bar button").forEach(b => b.classList.remove("active"));
+      el.classList.add("active");
+      renderTable();
+    }
+
+    function filterTable() { renderTable(); }
+
+    function renderTable() {
+      const query = document.getElementById("search").value.toLowerCase();
+      const filtered = allDomains.filter(d =>
+        d.domain.toLowerCase().includes(query) ||
+        (d.notes || "").toLowerCase().includes(query)
+      );
+
+      const colClass = {
+        dns:     ["col-dns"],
+        routing: ["col-routing"],
+        cms:     ["col-cms"],
+        artwork: ["col-artwork"],
+        all:     [],
+      };
+      const hide = colClass[currentTab];
+
+      // Show/hide columns
+      document.querySelectorAll(".domains-table [class^='col-'], .domains-table [class*=' col-']").forEach(el => {
+        const cls = [...el.classList].find(c => c.startsWith("col-"));
+        if (!cls) return;
+        if (currentTab === "all") { el.classList.remove("hidden"); return; }
+        el.classList.toggle("hidden", !hide.includes(cls));
+      });
+
+      if (filtered.length === 0) {
+        document.getElementById("domains-tbody").innerHTML =
+          `<tr class="empty-row"><td colspan="8">No domains found.</td></tr>`;
+        return;
+      }
+
+      document.getElementById("domains-tbody").innerHTML = filtered.map(d => {
+        const h = d.health || {};
+        const color = h.color || "grey";
+        const score = typeof h.score === "number" ? h.score : "—";
+        const hp = h.homepage || {};
+        const api = h.api || {};
+        const cms = h.cms || {};
+        const dns = h.dns || {};
+        const artwork = artworkScore(d);
+
+        return `<tr>
+          <td><strong>${escHtml(d.domain)}</strong>${d.notes ? `<br><span style="font-size:0.78rem;color:var(--muted)">${escHtml(d.notes)}</span>` : ''}</td>
+          <td><span class="score-badge"><span class="dot dot-${color}"></span>${score}</span></td>
+          <td class="col-routing">${statusBadge(hp.ok, hp.status_code ? `${hp.status_code} ${hp.response_ms}ms` : null)}</td>
+          <td class="col-routing">${statusBadge(api.ok, api.status_code ? `${api.status_code}` : null)}</td>
+          <td class="col-cms">${statusBadge(cms.ok, cms.detail || null)}</td>
+          <td class="col-dns">${statusBadge(dns.ok, dns.detail || null)}</td>
+          <td class="col-artwork">${artwork}</td>
+          <td><button class="edit-btn" onclick="openDrawer(${JSON.stringify(JSON.stringify(d))})">Edit</button></td>
+        </tr>`;
+      }).join("");
+    }
+
+    function artworkScore(d) {
+      const flags = [
+        [d.has_logo,     "Logo"],
+        [d.has_favicon,  "Favicon"],
+        [d.has_og_image, "OG"],
+        [d.has_masthead, "Masthead"],
+      ];
+      const count = flags.filter(([v]) => v).length;
+      return flags.map(([v, label]) =>
+        `<span style="font-size:0.75rem;margin-right:3px;color:${v ? '#16a34a' : '#d1d5db'}">${label}</span>`
+      ).join("") + ` <span style="font-size:0.75rem;color:var(--muted)">(${count}/4)</span>`;
+    }
+
+    function statusBadge(ok, label) {
+      const cls = ok ? "check-pass" : "check-fail";
+      const icon = ok ? "✓" : "✗";
+      const text = label ? ` <span style="font-size:0.75rem;color:var(--muted)">${escHtml(label)}</span>` : "";
+      return `<span class="${cls}">${icon}</span>${text}`;
+    }
+
+    function escHtml(str) {
+      return String(str || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function openDrawer(jsonStr) {
+      const d = JSON.parse(jsonStr);
+      document.getElementById("drawer-id").value          = d.id;
+      document.getElementById("drawer-title").textContent = d.domain;
+      document.getElementById("drawer-notes").value       = d.notes || "";
+      document.getElementById("drawer-registrar").value   = d.registrar || "";
+      document.getElementById("drawer-dns-provider").value = d.dns_provider || "";
+      document.getElementById("drawer-expected-ip").value = d.expected_ip || "";
+      document.getElementById("drawer-homepage-url").value = d.homepage_url || "";
+      document.getElementById("drawer-health-url").value  = d.health_url || "";
+      document.getElementById("flag-logo").checked        = !!d.has_logo;
+      document.getElementById("flag-favicon").checked     = !!d.has_favicon;
+      document.getElementById("flag-og").checked          = !!d.has_og_image;
+      document.getElementById("flag-masthead").checked    = !!d.has_masthead;
+      document.getElementById("drawer-log").textContent   = "";
+      document.getElementById("edit-drawer").classList.add("open");
+      document.getElementById("drawer-overlay").style.display = "block";
+    }
+
+    function closeDrawer() {
+      document.getElementById("edit-drawer").classList.remove("open");
+      document.getElementById("drawer-overlay").style.display = "none";
+    }
+
+    async function saveDrawer() {
+      const id  = document.getElementById("drawer-id").value;
+      const btn = document.getElementById("drawer-save");
+      btn.disabled = true;
+      try {
+        const payload = {
+          notes:        document.getElementById("drawer-notes").value,
+          registrar:    document.getElementById("drawer-registrar").value,
+          dns_provider: document.getElementById("drawer-dns-provider").value,
+          expected_ip:  document.getElementById("drawer-expected-ip").value,
+          homepage_url: document.getElementById("drawer-homepage-url").value,
+          health_url:   document.getElementById("drawer-health-url").value,
+          has_logo:     document.getElementById("flag-logo").checked,
+          has_favicon:  document.getElementById("flag-favicon").checked,
+          has_og_image: document.getElementById("flag-og").checked,
+          has_masthead: document.getElementById("flag-masthead").checked,
+        };
+        await fetchJson(`/admin/ops/domains/${id}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+        document.getElementById("drawer-log").textContent = "Saved.";
+        closeDrawer();
+        await loadDomains();
+      } catch (err) {
+        document.getElementById("drawer-log").textContent = `Error: ${err.message}`;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    // Init
+    loadDomains();
+  </script>
+</body>
+</html>

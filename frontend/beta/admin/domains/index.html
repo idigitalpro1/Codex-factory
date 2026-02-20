@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Domain Dashboard — Codex Factory</title>
+  <link rel="stylesheet" href="../../styles.css" />
+  <style>
+    .domain-grid {
+      display: grid;
+      gap: 1rem;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      margin-top: 1rem;
+    }
+    .domain-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.1rem;
+    }
+    .domain-card.green  { border-left: 4px solid #16a34a; }
+    .domain-card.yellow { border-left: 4px solid #d97706; }
+    .domain-card.red    { border-left: 4px solid #dc2626; }
+    .domain-card.grey   { border-left: 4px solid #9ca3af; }
+    .domain-name {
+      font-size: 1rem;
+      font-weight: 700;
+      margin: 0 0 0.15rem;
+    }
+    .domain-slug {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin: 0 0 0.75rem;
+      font-family: monospace;
+    }
+    .check-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.28rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.85rem;
+    }
+    .check-row:last-child { border-bottom: none; }
+    .check-label { color: var(--muted); }
+    .ok   { color: #16a34a; font-weight: 600; }
+    .fail { color: #dc2626; }
+    .pending { color: #9ca3af; }
+    .score-pill {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #fff;
+    }
+    .pill-green  { background: #16a34a; }
+    .pill-yellow { background: #d97706; }
+    .pill-red    { background: #dc2626; }
+    .pill-grey   { background: #9ca3af; }
+    .checklist {
+      margin: 0.5rem 0 0;
+      padding: 0;
+      list-style: none;
+    }
+    .checklist li {
+      font-size: 0.8rem;
+      padding: 0.2rem 0;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .checklist li .icon { font-style: normal; }
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+    .controls input {
+      flex: 1;
+      min-width: 180px;
+      padding: 0.5rem 0.7rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 0.9rem;
+    }
+    .loading { color: var(--muted); font-style: italic; }
+  </style>
+</head>
+<body>
+  <div class="hero">
+    <div class="container" style="margin:0 auto;padding:0 1rem;">
+      <a href="/" style="color:rgba(255,255,255,0.7);font-size:0.85rem;text-decoration:none;">← Codex Factory</a>
+      <h1 style="margin:0.4rem 0 0.2rem;">Domain Dashboard</h1>
+      <p style="margin:0;opacity:0.8;font-size:0.9rem;">Brand · DNS · SSL · Routing · Marketing readiness</p>
+    </div>
+  </div>
+
+  <div class="container">
+    <section class="admin-panel">
+      <div class="controls">
+        <input id="search" type="text" placeholder="Filter domains or brands…" oninput="render()" />
+        <button id="refresh-btn" onclick="load()">↺ Refresh</button>
+      </div>
+      <div id="grid" class="domain-grid">
+        <p class="loading">Loading…</p>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const API_CANDIDATES = [
+      "http://localhost:8080/api/v1",
+      "http://127.0.0.1:8080/api/v1",
+    ];
+    let apiBase = null;
+    let allDomains = [];
+
+    async function resolveApiBase() {
+      for (const c of API_CANDIDATES) {
+        try {
+          const r = await fetch(`${c}/health`, { signal: AbortSignal.timeout(2000) });
+          if (r.ok) { apiBase = c; return; }
+        } catch (_) {}
+      }
+      apiBase = "/api/v1";
+    }
+
+    async function load() {
+      const btn = document.getElementById("refresh-btn");
+      btn.disabled = true;
+      btn.textContent = "Checking…";
+      try {
+        if (!apiBase) await resolveApiBase();
+        const res = await fetch(`${apiBase}/admin/ops/domains?limit=100`, {
+          headers: { "Content-Type": "application/json" },
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        allDomains = data.domains || [];
+        render();
+      } catch (err) {
+        document.getElementById("grid").innerHTML =
+          `<p style="color:#dc2626">Error: ${esc(err.message)}</p>`;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "↺ Refresh";
+      }
+    }
+
+    function render() {
+      const q = document.getElementById("search").value.toLowerCase();
+      const filtered = allDomains.filter(d =>
+        d.domain.toLowerCase().includes(q) ||
+        (d.brand_slug || "").toLowerCase().includes(q) ||
+        (d.notes || "").toLowerCase().includes(q)
+      );
+
+      if (filtered.length === 0) {
+        document.getElementById("grid").innerHTML =
+          `<p class="loading">No domains found.</p>`;
+        return;
+      }
+
+      document.getElementById("grid").innerHTML = filtered.map(card).join("");
+    }
+
+    function card(d) {
+      const h   = d.health || {};
+      const hp  = h.homepage || {};
+      const api = h.api || {};
+      const dns = h.dns || {};
+      const color = h.color || "grey";
+      const score = typeof h.score === "number" ? h.score : "—";
+
+      // SSL: inferred from homepage routing over HTTPS
+      const sslOk = hp.ok && (d.homepage_url || "").startsWith("https://");
+
+      // Marketing readiness checklist
+      const items = [
+        [d.has_logo,     "Logo uploaded"],
+        [d.has_favicon,  "Favicon set"],
+        [d.has_og_image, "OG image ready"],
+        [d.has_masthead, "Masthead artwork"],
+        [!!d.brand_slug, "Brand slug assigned"],
+        [!!d.homepage_url, "Homepage URL set"],
+      ];
+
+      return `<div class="domain-card ${esc(color)}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <div>
+            <p class="domain-name">${esc(d.domain)}</p>
+            <p class="domain-slug">brand: ${esc(d.brand_slug || "—")}</p>
+          </div>
+          <span class="score-pill pill-${esc(color)}">${score}</span>
+        </div>
+
+        <div class="check-row">
+          <span class="check-label">DNS expected IP</span>
+          <span>${esc(d.expected_ip || "—")}</span>
+        </div>
+        <div class="check-row">
+          <span class="check-label">DNS config</span>
+          <span class="${dns.ok ? 'ok' : 'fail'}">${dns.ok ? "✓ OK" : "✗ " + esc(dns.detail || "missing")}</span>
+        </div>
+        <div class="check-row">
+          <span class="check-label">SSL</span>
+          <span class="${sslOk ? 'ok' : (hp.ok ? 'pending' : 'fail')}">
+            ${sslOk ? "✓ HTTPS" : hp.ok ? "~ HTTP only" : "✗ Unreachable"}
+          </span>
+        </div>
+        <div class="check-row">
+          <span class="check-label">Routing (homepage)</span>
+          <span class="${hp.ok ? 'ok' : 'fail'}">${hp.ok ? "✓ " + hp.status_code : "✗ " + (hp.status_code || "timeout")}</span>
+        </div>
+        <div class="check-row">
+          <span class="check-label">API health</span>
+          <span class="${api.ok ? 'ok' : 'fail'}">${api.ok ? "✓ ok" : "✗ " + (api.status_code || "—")}</span>
+        </div>
+
+        <ul class="checklist">
+          ${items.map(([v, label]) =>
+            `<li><em class="icon">${v ? "✓" : "○"}</em><span style="color:${v ? '#16a34a' : '#9ca3af'}">${esc(label)}</span></li>`
+          ).join("")}
+        </ul>
+      </div>`;
+    }
+
+    function esc(s) {
+      return String(s || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    load();
+  </script>
+</body>
+</html>

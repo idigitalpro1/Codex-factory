@@ -38,7 +38,20 @@ async function resolveApiBase() {
     }
   }
 
-  throw new Error("No reachable API base found on localhost/127.0.0.1/[::1].");
+  // Production fallback: Plesk proxies /api/* to the backend container.
+  apiBase = "/api/v1";
+  return apiBase;
+}
+
+function detectSubdomainBrand() {
+  const { hostname } = window.location;
+  if (hostname === "localhost" || hostname === "127.0.0.1" || !hostname.includes(".")) {
+    return null;
+  }
+  const parts = hostname.split(".");
+  // "monarch.5280.menu" → ["monarch","5280","menu"] → subdomain = "monarch"
+  // "5280.menu"         → ["5280","menu"]           → no subdomain
+  return parts.length >= 3 ? parts[0] : null;
 }
 
 async function fetchJson(path, options = {}) {
@@ -332,15 +345,17 @@ async function adminRefresh() {
 // --- Init ---
 
 async function init() {
-  try {
-    await resolveApiBase();
-  } catch (error) {
-    document.getElementById("health").textContent = error.message;
-  }
-
+  await resolveApiBase();
   await loadHealth();
   await loadBrands();
-  await loadFeed(false);
+
+  const subdomainSlug = detectSubdomainBrand();
+  if (subdomainSlug && brandData.find((b) => b.slug === subdomainSlug)) {
+    selectBrand(subdomainSlug);
+  } else {
+    await loadFeed(false);
+  }
+
   await adminRefresh();
 }
 

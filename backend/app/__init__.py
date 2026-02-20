@@ -10,6 +10,7 @@ from .routes.ai import ai_bp
 from .routes.brands import brands_bp
 from .routes.feed import feed_bp
 from .routes.health import health_bp
+from .routes.ops_domains import ops_domains_bp
 
 
 def create_app(config_class=Config) -> Flask:
@@ -25,6 +26,10 @@ def create_app(config_class=Config) -> Flask:
             os.makedirs(db_dir, exist_ok=True)
 
     init_db(app)
+
+    from .services.ops_domain_store import seed_ops_domains
+    with app.app_context():
+        seed_ops_domains()
 
     CORS(
         app,
@@ -45,5 +50,6 @@ def create_app(config_class=Config) -> Flask:
     app.register_blueprint(feed_bp, url_prefix="/api/v1")
     app.register_blueprint(ai_bp, url_prefix="/api/v1")
     app.register_blueprint(admin_bp, url_prefix="/api/v1")
+    app.register_blueprint(ops_domains_bp, url_prefix="/api/v1")
 
     return app
