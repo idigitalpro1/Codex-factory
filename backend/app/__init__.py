@@ -42,6 +42,7 @@ def create_app(config_class=Config) -> Flask:
                     "http://127.0.0.1:8090",
                     "http://localhost:4173",
                     "http://127.0.0.1:4173",
+                    "https://5280.menu",
                 ]
             }
         },
