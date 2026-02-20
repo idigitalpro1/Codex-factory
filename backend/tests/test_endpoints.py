@@ -4,6 +4,7 @@ import os
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 
 import app.services.articles as articles_mod
+import app.services.ops_domain_store as ops_store
 from app import create_app
 from app.db import db
 
@@ -15,6 +16,8 @@ def _client():
         db.drop_all()
         db.create_all()
         articles_mod._seeded = False
+        ops_store._seeded = False
+        ops_store.seed_ops_domains()
     return application.test_client()
 
 
@@ -253,3 +256,50 @@ def test_mock_ai_endpoint():
     payload = res.get_json()
     assert res.status_code == 200
     assert payload["provider"] == "mock-ai"
+
+
+# --- Ops Domains ---
+
+def test_ops_domains_seeded_domain_appears():
+    res = _client().get("/api/v1/admin/ops/domains")
+    assert res.status_code == 200
+    payload = res.get_json()
+    assert "domains" in payload
+    domains = [d["domain"] for d in payload["domains"]]
+    assert "5280.menu" in domains
+
+
+def test_ops_domains_scoring():
+    c = _client()
+    res = c.post("/api/v1/admin/ops/domains", json={
+        "domain":       "test-scoring.example.com",
+        "homepage_url": "https://example.com",
+        "health_url":   "https://example.com/health",
+        "expected_ip":  "44.236.197.183",
+        "has_logo":     True,
+        "has_favicon":  True,
+        "has_og_image": True,
+        "has_masthead": True,
+    })
+    assert res.status_code == 201
+    # Fetch the list and confirm score is present and numeric
+    list_res = c.get("/api/v1/admin/ops/domains")
+    domains = list_res.get_json()["domains"]
+    scored = next(d for d in domains if d["domain"] == "test-scoring.example.com")
+    assert "health" in scored
+    assert isinstance(scored["health"]["score"], int)
+    assert scored["health"]["color"] in ("green", "yellow", "red")
+
+
+def test_ops_domains_invalid_url_rejected():
+    res = _client().post("/api/v1/admin/ops/domains", json={
+        "domain":       "valid-domain.com",
+        "homepage_url": "not-a-url",
+    })
+    assert res.status_code == 400
+
+
+def test_ops_domains_endpoints_at_admin_prefix():
+    c = _client()
+    assert c.get("/api/v1/admin/ops/domains").status_code == 200
+    assert c.get("/api/v1/ops/domains").status_code == 404

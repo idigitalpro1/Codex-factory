@@ -1,5 +1,8 @@
+import { useState, useEffect } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
+import { useWorkspace } from '../context/WorkspaceContext'
+import AssistantPanel from './AssistantPanel'
 
 const NAV = [
   { to: '/',        label: 'Health',   icon: HeartIcon,   exact: true },
@@ -11,6 +14,7 @@ const NAV = [
 
 export default function Layout() {
   const { user, logout } = useAuth()
+  const { panelOpen, togglePanel } = useWorkspace()
   const navigate = useNavigate()
 
   function handleLogout() {
@@ -19,8 +23,10 @@ export default function Layout() {
   }
 
   return (
-    <div className="flex min-h-screen bg-cx-bg text-cx-text font-sans">
-      {/* ── Sidebar ─────────────────────────────────────────── */}
+    // h-screen + overflow-hidden keeps each column independently scrollable
+    <div className="flex h-screen overflow-hidden bg-cx-bg text-cx-text font-sans">
+
+      {/* ── Left sidebar — never remounts ─────────────────────── */}
       <aside className="w-56 shrink-0 flex flex-col bg-cx-panel border-r border-cx-border">
         {/* Wordmark */}
         <div className="px-5 py-5 border-b border-cx-border">
@@ -62,23 +68,39 @@ export default function Layout() {
         </div>
       </aside>
 
-      {/* ── Main ─────────────────────────────────────────────── */}
-      <main className="flex-1 overflow-auto">
+      {/* ── Center column — page content ──────────────────────── */}
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
         {/* Topbar */}
-        <header className="h-12 border-b border-cx-border flex items-center px-6 gap-3 bg-cx-panel/50 backdrop-blur sticky top-0 z-10">
+        <header className="h-12 border-b border-cx-border flex items-center px-6 gap-3 bg-cx-panel/50 backdrop-blur shrink-0 z-10">
           <StatusDot />
           <span className="text-xs text-cx-muted font-mono">5280.menu</span>
+          <div className="flex-1" />
+          {/* Toggle assistant panel */}
+          <button
+            onClick={togglePanel}
+            title={panelOpen ? 'Hide assistant' : 'Show assistant'}
+            className="flex items-center gap-1.5 text-xs text-cx-muted hover:text-cx-text transition-colors border border-cx-border rounded px-2 py-1"
+          >
+            <AssistantIcon className="w-3.5 h-3.5" />
+            {panelOpen ? 'Hide' : 'Assistant'}
+          </button>
         </header>
 
-        <div className="p-6 max-w-5xl mx-auto">
-          <Outlet />
-        </div>
-      </main>
+        {/* Scrollable page area */}
+        <main className="flex-1 overflow-y-auto">
+          <div className="p-6 max-w-5xl mx-auto">
+            <Outlet />
+          </div>
+        </main>
+      </div>
+
+      {/* ── Right assistant panel — never remounts ────────────── */}
+      <AssistantPanel />
     </div>
   )
 }
 
-// ── Live health dot ──────────────────────────────────────────
+// ── Live health dot ───────────────────────────────────────────
 function StatusDot() {
   const [ok, setOk] = useState(null)
   useEffect(() => {
@@ -96,10 +118,7 @@ function StatusDot() {
   )
 }
 
-// ── Missing imports ──────────────────────────────────────────
-import { useState, useEffect } from 'react'
-
-// ── Inline SVG icon components ───────────────────────────────
+// ── Icons ─────────────────────────────────────────────────────
 function HeartIcon({ className }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -132,6 +151,13 @@ function ReceiptIcon({ className }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 14.25l6-6m4.5-3.493V21.75l-3.75-1.5-3.75 1.5-3.75-1.5-3.75 1.5V4.757c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0c1.1.128 1.907 1.077 1.907 2.185zM9.75 9h.008v.008H9.75V9zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 4.5h.008v.008h-.008V13.5zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+    </svg>
+  )
+}
+function AssistantIcon({ className }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
     </svg>
   )
 }

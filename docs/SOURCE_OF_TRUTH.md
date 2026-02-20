@@ -8,7 +8,7 @@ Next-Gen Digital Factory monorepo for:
 ## Production
 - **Domain:** `https://5280.menu`
 - **Server:** AWS Lightsail `44.236.197.183` (instance: `mmtkplesk`)
-- **Platform:** Plesk (Apache-only mode, SSL via Let's Encrypt)
+- **Platform:** Plesk (Apache on port 443, system nginx INACTIVE, SSL via Let's Encrypt)
 
 ### Routing
 ```
@@ -40,6 +40,16 @@ HTTP (80) → 301 redirect to HTTPS
 - **Containers:** Docker Compose at `~/apps/codex-factory` on server
 - **SSL:** Managed by Plesk (Let's Encrypt)
 - **Proxy config:** `/var/www/vhosts/system/5280.menu/conf/vhost_ssl.conf`
+
+### Admin Auth (Apache Basic Auth)
+`/api/v1/admin/*` is protected by HTTP Basic Auth at the Apache layer.
+- **htpasswd file:** `/etc/apache2/.htpasswd_codex_admin` (owner: `root:www-data` 640)
+- **Username:** `codexadmin`
+- **Password:** `_g7tUQwtZg1FZstcpddRie8O`
+- Hash format: apr1 (`$apr1$...`)
+- To call admin API: `curl -u codexadmin:_g7tUQwtZg1FZstcpddRie8O https://5280.menu/api/v1/admin/articles`
+
+> **NOTE:** htpasswd must live in `/etc/apache2/` (not `conf/`). The Plesk `conf/` dir has inaccessible parent paths at Apache worker runtime despite correct Unix perms.
 
 ### Deploy (on server)
 ```bash
