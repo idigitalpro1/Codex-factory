@@ -7,6 +7,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
   plugins: [react()],
+  base: '/admin/',   // assets served as /admin/assets/… matching the Plesk ProxyPass prefix
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'src'),
