@@ -40,5 +40,19 @@ services:
       - /var/codex/published:/usr/share/nginx/html/campaign:ro
     restart: unless-stopped
 
+  admin:
+    build: ./frontend/admin-spa
+    ports:
+      - "8091:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/index.html"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
 volumes:
   billing-creds:

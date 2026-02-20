@@ -14,9 +14,11 @@ function ProtectedRoute({ children }) {
 }
 
 export default function App() {
+  // basename="/admin" matches the Plesk ProxyPass path prefix.
+  // Remove or change if hosting at root or a subdomain.
   return (
     <AuthProvider>
-      <BrowserRouter>
+      <BrowserRouter basename="/admin">
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route
