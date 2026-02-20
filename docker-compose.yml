@@ -15,8 +15,13 @@ services:
       - SMTP_PORT=${SMTP_PORT:-587}
       - SMTP_USER=${SMTP_USER:-}
       - SMTP_PASS=${SMTP_PASS:-}
+      # Campaign kits
+      - KITS_ROOT=/var/codex/kits
+      - PUBLISHED_ROOT=/var/codex/published
+      - ADMIN_API_KEY=${ADMIN_API_KEY:-codex-internal-2026}
     volumes:
       - billing-creds:/run/secrets:ro
+      - /var/codex:/var/codex
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/v1/health')"]
       interval: 10s
@@ -31,6 +36,8 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    volumes:
+      - /var/codex/published:/usr/share/nginx/html/campaign:ro
     restart: unless-stopped
 
 volumes:

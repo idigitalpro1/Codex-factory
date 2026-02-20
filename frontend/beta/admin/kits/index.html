@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Campaign Kits — Codex Factory</title>
+  <link rel="stylesheet" href="../../styles.css" />
+  <style>
+    .upload-zone {
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 40px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s;
+      margin-bottom: 1.5rem;
+    }
+    .upload-zone:hover, .upload-zone.drag { border-color: var(--primary); background: #f0f4ff; }
+    .upload-zone p { color: var(--muted); margin: 8px 0; font-size: 0.9rem; }
+    #file-input { display: none; }
+
+    .kit-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.2rem;
+      margin-bottom: 1rem;
+    }
+    .kit-header { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+    .kit-slug { font-size: 1rem; font-weight: 700; }
+    .kit-ts { font-size: 0.78rem; color: var(--muted); }
+    .kit-status {
+      display: inline-block; padding: 2px 10px; border-radius: 10px;
+      font-size: 0.74rem; font-family: sans-serif; font-weight: 600;
+      text-transform: uppercase; margin-left: auto;
+    }
+    .status-imported  { background: #e5e7eb; color: #374151; }
+    .status-published { background: #d1fae5; color: #065f46; }
+
+    .validation-errors { margin: 8px 0; }
+    .v-error { color: #dc2626; font-size: 0.82rem; }
+    .v-warn  { color: #d97706; font-size: 0.82rem; }
+    .v-ok    { color: #16a34a; font-size: 0.82rem; }
+
+    .kit-urls { margin-top: 10px; font-size: 0.82rem; }
+    .kit-urls a { color: var(--primary); display: inline-block; margin: 2px 8px 2px 0; }
+
+    .kit-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    .kit-actions button { margin: 0; font-size: 0.82rem; padding: 5px 12px; }
+
+    .upload-progress { font-size: 0.9rem; padding: 8px 0; color: var(--muted); }
+    .msg-bar { background: #f0f4ff; border-left: 3px solid var(--primary); padding: 8px 14px; font-size: 0.9rem; margin-bottom: 1rem; border-radius: 0 5px 5px 0; }
+    .msg-err { border-color: #dc2626; background: #fef2f2; color: #991b1b; }
+    .empty { color: var(--muted); font-style: italic; padding: 20px 0; }
+  </style>
+</head>
+<body>
+  <div class="hero">
+    <div class="container" style="margin:0 auto;padding:0 1rem;">
+      <a href="/" style="color:rgba(255,255,255,0.7);font-size:0.85rem;text-decoration:none;">← Codex Factory</a>
+      <h1 style="margin:0.4rem 0 0.2rem;">Campaign Kit Manager</h1>
+      <p style="margin:0;opacity:0.8;font-size:0.9rem;">Import · Validate · Publish Manus campaign kits</p>
+    </div>
+  </div>
+
+  <div class="container">
+    <section class="admin-panel">
+      <div id="msg" class="msg-bar" style="display:none;"></div>
+
+      <!-- Upload zone -->
+      <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
+        <input type="file" id="file-input" accept=".zip" onchange="uploadKit(this.files[0])" />
+        <p style="font-size:1.1rem;">📦 Drop or click to upload campaign-kit.zip</p>
+        <p>Must contain: landing/index.html · banners/ (6+) · email/ (2+) · editorial/ (2 md) · seo/ · manifest.json</p>
+      </div>
+      <div id="upload-status" class="upload-progress" style="display:none;"></div>
+
+      <!-- Kit list -->
+      <div id="admin-key-row" style="margin-bottom:1rem;">
+        <label style="font-size:0.82rem;color:var(--muted);">Admin Key</label>
+        <input id="admin-key" type="password" value="codex-internal-2026"
+          style="width:260px;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-family:monospace;font-size:0.82rem;"
+          placeholder="X-Admin-Key value" />
+      </div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
+        <h2 style="margin:0;">Imported Kits</h2>
+        <button onclick="loadKits()">↺ Refresh</button>
+      </div>
+
+      <div id="kits-list"><p class="empty">Loading…</p></div>
+    </section>
+  </div>
+
+  <script>
+    const API = "/api/v1";
+
+    function adminKey() {
+      return document.getElementById("admin-key").value.trim();
+    }
+
+    function msg(text, err) {
+      const el = document.getElementById("msg");
+      el.textContent = text;
+      el.className = "msg-bar" + (err ? " msg-err" : "");
+      el.style.display = "block";
+      if (!err) setTimeout(() => { el.style.display = "none"; }, 5000);
+    }
+
+    function esc(s) {
+      return String(s || "")
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    // ── Drag and drop ─────────────────────────────
+    const zone = document.getElementById("upload-zone");
+    zone.addEventListener("dragover", e => { e.preventDefault(); zone.classList.add("drag"); });
+    zone.addEventListener("dragleave", () => zone.classList.remove("drag"));
+    zone.addEventListener("drop", e => {
+      e.preventDefault();
+      zone.classList.remove("drag");
+      const f = e.dataTransfer.files[0];
+      if (f) uploadKit(f);
+    });
+
+    // ── Upload ─────────────────────────────────────
+    async function uploadKit(file) {
+      if (!file || !file.name.endsWith(".zip")) {
+        msg("Only .zip files accepted.", true);
+        return;
+      }
+      const status = document.getElementById("upload-status");
+      status.style.display = "block";
+      status.textContent = `Uploading ${file.name} (${(file.size / 1024).toFixed(0)} KB)…`;
+
+      const form = new FormData();
+      form.append("file", file);
+
+      try {
+        const res = await fetch(`${API}/kits/import`, {
+          method: "POST",
+          headers: { "X-Admin-Key": adminKey() },
+          body: form,
+        });
+        const kit = await res.json();
+        if (!res.ok) throw new Error(kit.description || kit.error || `HTTP ${res.status}`);
+
+        const v = kit.validation;
+        if (v.passed) {
+          msg(`✓ Imported "${kit.slug}" — validation passed. ${v.banner_count} banners, ${v.email_count} emails, ${v.editorial_count} editorial files.`);
+        } else {
+          msg(`Imported with errors: ${v.errors.join("; ")}`, true);
+        }
+        loadKits();
+      } catch (e) {
+        msg(`Import failed: ${e.message}`, true);
+      } finally {
+        status.style.display = "none";
+      }
+    }
+
+    // ── Publish ─────────────────────────────────────
+    async function publishKit(kitId, slug) {
+      const btn = document.getElementById(`pub-${kitId}`);
+      btn.disabled = true;
+      btn.textContent = "Publishing…";
+      try {
+        const res = await fetch(`${API}/kits/${kitId}/publish`, {
+          method: "POST",
+          headers: { "X-Admin-Key": adminKey() },
+        });
+        const kit = await res.json();
+        if (!res.ok) throw new Error(kit.description || `HTTP ${res.status}`);
+        msg(`✓ Published! Live at /campaign/${esc(slug)}/`);
+        loadKits();
+      } catch (e) {
+        msg(`Publish failed: ${e.message}`, true);
+        btn.disabled = false;
+        btn.textContent = "Publish";
+      }
+    }
+
+    // ── Load kits ─────────────────────────────────────
+    async function loadKits() {
+      const container = document.getElementById("kits-list");
+      try {
+        const res = await fetch(`${API}/kits`);
+        const data = await res.json();
+        const kits = data.kits || [];
+        if (kits.length === 0) {
+          container.innerHTML = '<p class="empty">No kits imported yet.</p>';
+          return;
+        }
+        container.innerHTML = kits.map(kitCard).join("");
+      } catch (e) {
+        container.innerHTML = `<p style="color:#dc2626">Error: ${esc(e.message)}</p>`;
+      }
+    }
+
+    function kitCard(kit) {
+      const v = kit.validation || {};
+      const pub = kit.status === "published";
+      const slug = esc(kit.slug);
+
+      const errHtml = (v.errors || []).map(e => `<div class="v-error">✗ ${esc(e)}</div>`).join("");
+      const warnHtml = (v.warnings || []).map(w => `<div class="v-warn">⚠ ${esc(w)}</div>`).join("");
+      const passHtml = v.passed ? '<div class="v-ok">✓ Validation passed</div>' : "";
+
+      const urls = pub ? `
+        <div class="kit-urls">
+          <strong>Live:</strong>
+          <a href="/campaign/${slug}/" target="_blank">/campaign/${slug}/</a>
+          <a href="/campaign/${slug}/banners/" target="_blank">banners</a>
+          <a href="/campaign/${slug}/email/" target="_blank">email</a>
+          <a href="/campaign/${slug}/press-release/" target="_blank">press-release</a>
+          <a href="/campaign/${slug}/sponsored-article/" target="_blank">sponsored-article</a>
+        </div>` : "";
+
+      const pubBtn = pub
+        ? `<button onclick="publishKit('${esc(kit.id)}','${slug}')" id="pub-${esc(kit.id)}">↺ Re-publish</button>`
+        : `<button onclick="publishKit('${esc(kit.id)}','${slug}')" id="pub-${esc(kit.id)}" ${!v.passed ? 'title="Validation failed — publish anyway?"' : ""}>Publish${!v.passed ? " ⚠" : ""}</button>`;
+
+      return `<div class="kit-card">
+        <div class="kit-header">
+          <div>
+            <span class="kit-slug">${slug}</span>
+            <span class="kit-ts"> · ${esc(kit.timestamp || "")} · ${esc(kit.filename || "")}</span>
+          </div>
+          <span class="kit-status status-${esc(kit.status)}">${esc(kit.status)}</span>
+        </div>
+        <div class="validation-errors">${passHtml}${errHtml}${warnHtml}</div>
+        ${urls}
+        <div class="kit-actions">
+          ${pubBtn}
+          <a href="${API}/kits/${esc(kit.id)}/status" target="_blank"><button>View Manifest</button></a>
+        </div>
+      </div>`;
+    }
+
+    loadKits();
+  </script>
+</body>
+</html>
