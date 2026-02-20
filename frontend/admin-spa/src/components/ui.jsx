@@ -1,47 +1,92 @@
-// Shared UI primitives
+/**
+ * Codex UI primitives — backed by Dashtail shadcn components.
+ *
+ * Pages import from here (Badge, Btn, Card…) and automatically get
+ * the Dashtail/Radix implementations. Existing page code unchanged.
+ */
+import { cn } from '../lib/utils'
+import { Button as DtButton } from './ui/button'
+import { Badge as DtBadge } from './ui/badge'
+import { Card as DtCard, CardContent } from './ui/card'
+import { Skeleton } from './ui/skeleton'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from './ui/dialog'
+import { Input }     from './ui/input'
+import { Label }     from './ui/label'
+import { Separator } from './ui/separator'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from './ui/tooltip'
 
-export function Badge({ color = 'gray', children }) {
-  const map = {
-    green:  'bg-green-900/30  text-green-400  border-green-800',
-    red:    'bg-red-900/30    text-red-400    border-red-800',
-    amber:  'bg-amber-900/30  text-amber-400  border-amber-800',
-    blue:   'bg-blue-900/30   text-blue-400   border-blue-800',
-    gray:   'bg-white/5       text-cx-muted   border-cx-border',
-    gold:   'bg-yellow-900/30 text-yellow-400 border-yellow-800',
-  }
+// ── Badge ─────────────────────────────────────────────────────────────
+// Maps our color strings → Dashtail color + variant props
+const BADGE_MAP = {
+  green:  { color: 'success',     variant: 'soft' },
+  red:    { color: 'destructive', variant: 'soft' },
+  amber:  { color: 'warning',     variant: 'soft' },
+  blue:   { color: 'info',        variant: 'soft' },
+  gray:   { color: 'secondary',   variant: 'soft' },
+  gold:   { color: 'warning',     variant: 'soft' },
+}
+
+export function Badge({ color = 'gray', children, className }) {
+  const { color: dtColor, variant } = BADGE_MAP[color] ?? BADGE_MAP.gray
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${map[color] ?? map.gray}`}>
+    <DtBadge color={dtColor} variant={variant} className={className}>
       {children}
-    </span>
+    </DtBadge>
   )
+}
+
+// ── Btn ───────────────────────────────────────────────────────────────
+const BTN_MAP = {
+  primary: { color: 'primary' },
+  success: { color: 'success' },
+  danger:  { color: 'destructive' },
+  ghost:   { color: 'secondary', variant: 'soft' },
+  amber:   { color: 'warning' },
 }
 
 export function Btn({ onClick, disabled, variant = 'primary', size = 'sm', children, className = '', type = 'button' }) {
-  const base = 'inline-flex items-center justify-center gap-1.5 rounded font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed'
-  const sizes  = { sm: 'px-3 py-1.5 text-xs', md: 'px-4 py-2 text-sm', lg: 'px-5 py-2.5 text-base' }
-  const variants = {
-    primary: 'bg-cx-blue    hover:bg-blue-600  text-white',
-    success: 'bg-cx-green   hover:bg-green-700 text-white',
-    danger:  'bg-cx-red     hover:bg-red-700   text-white',
-    ghost:   'bg-white/5    hover:bg-white/10  text-cx-text  border border-cx-border',
-    amber:   'bg-amber-700  hover:bg-amber-600 text-white',
-  }
+  const { color, variant: dtVariant } = BTN_MAP[variant] ?? BTN_MAP.primary
+  const dtSize = { sm: 'xs', md: 'sm', lg: 'md' }[size] ?? 'xs'
   return (
-    <button type={type} onClick={onClick} disabled={disabled}
-      className={`${base} ${sizes[size] ?? sizes.sm} ${variants[variant] ?? variants.primary} ${className}`}>
+    <DtButton
+      type={type}
+      onClick={onClick}
+      disabled={disabled}
+      color={color}
+      variant={dtVariant}
+      size={dtSize}
+      className={className}
+    >
       {children}
-    </button>
+    </DtButton>
   )
 }
 
+// ── Card ──────────────────────────────────────────────────────────────
 export function Card({ children, className = '' }) {
   return (
-    <div className={`bg-cx-card border border-cx-border rounded-card p-4 ${className}`}>
-      {children}
-    </div>
+    <DtCard className={cn('bg-cx-card border-cx-border', className)}>
+      <CardContent className="p-4">
+        {children}
+      </CardContent>
+    </DtCard>
   )
 }
 
+// ── PageHeader ────────────────────────────────────────────────────────
 export function PageHeader({ title, subtitle, action }) {
   return (
     <div className="flex items-start justify-between mb-6">
@@ -54,21 +99,23 @@ export function PageHeader({ title, subtitle, action }) {
   )
 }
 
+// ── AlertBar ──────────────────────────────────────────────────────────
 export function AlertBar({ text, type = 'info' }) {
   if (!text) return null
   const map = {
-    info:    'bg-blue-900/20  border-blue-800  text-blue-300',
-    success: 'bg-green-900/20 border-green-800 text-green-300',
-    error:   'bg-red-900/20   border-red-800   text-red-300',
-    warn:    'bg-amber-900/20 border-amber-800 text-amber-300',
+    info:    'bg-info/10    border-info/30    text-info',
+    success: 'bg-success/10 border-success/30 text-success',
+    error:   'bg-destructive/10 border-destructive/30 text-destructive',
+    warn:    'bg-warning/10  border-warning/30  text-warning',
   }
   return (
-    <div className={`mb-4 px-4 py-2.5 rounded border text-sm ${map[type] ?? map.info}`}>
+    <div className={cn('mb-4 px-4 py-2.5 rounded border text-sm', map[type] ?? map.info)}>
       {text}
     </div>
   )
 }
 
+// ── Spinner ───────────────────────────────────────────────────────────
 export function Spinner() {
   return (
     <div className="flex items-center gap-2 text-cx-muted text-sm">
@@ -81,6 +128,7 @@ export function Spinner() {
   )
 }
 
+// ── Table ─────────────────────────────────────────────────────────────
 export function Table({ columns, rows, keyField = 'id' }) {
   return (
     <div className="overflow-x-auto">
@@ -112,4 +160,13 @@ export function Table({ columns, rows, keyField = 'id' }) {
       </table>
     </div>
   )
+}
+
+// ── Re-export Dashtail primitives for direct use in pages ─────────────
+export {
+  Input, Label, Separator, Skeleton,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
+  Tabs, TabsList, TabsTrigger, TabsContent,
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+  cn,
 }

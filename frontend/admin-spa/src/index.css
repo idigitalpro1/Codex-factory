@@ -2,7 +2,50 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Base overrides */
+/* ── Codex dark editorial design tokens (shadcn/Dashtail compatible) ─── */
+:root {
+  /* Dashtail/shadcn variable names — dark editorial palette */
+  --background:           232 15% 7%;      /* #0c0c14 */
+  --foreground:           232 25% 90%;     /* #dde0ee */
+
+  --card:                 236 22% 13%;     /* #1a1a2a */
+  --card-foreground:      232 25% 90%;
+
+  --popover:              235 22% 11%;     /* #13131e */
+  --popover-foreground:   232 25% 90%;
+
+  --primary:              220 100% 55%;    /* #1a6aff */
+  --primary-foreground:   0 0% 100%;
+
+  --secondary:            235 20% 16%;
+  --secondary-foreground: 232 25% 80%;
+
+  --muted:                235 20% 18%;     /* ~#252535 */
+  --muted-foreground:     236 20% 55%;     /* #6366a0 */
+
+  --accent:               235 20% 20%;
+  --accent-foreground:    232 25% 90%;
+
+  --destructive:          0 72% 51%;       /* #dc2626 */
+  --destructive-foreground: 0 0% 100%;
+
+  --success:              142 71% 45%;     /* #16a34a */
+  --success-foreground:   0 0% 100%;
+
+  --warning:              25 95% 53%;      /* #d97706 */
+  --warning-foreground:   0 0% 100%;
+
+  --info:                 217 91% 60%;     /* #3b82f6 */
+  --info-foreground:      0 0% 100%;
+
+  --border:               235 20% 18%;     /* #252535 */
+  --input:                235 20% 18%;
+  --ring:                 220 100% 55%;
+
+  --radius: 0.5rem;
+}
+
+/* ── Base ─────────────────────────────────────────────────────────── */
 *, *::before, *::after {
   box-sizing: border-box;
 }
@@ -18,8 +61,16 @@ body {
   color: #dde0ee;
 }
 
-/* Scrollbar — dark editorial style */
+/* ── Scrollbar — dark editorial ──────────────────────────────────── */
 ::-webkit-scrollbar        { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track  { background: transparent; }
 ::-webkit-scrollbar-thumb  { background: #252535; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #6366a0; }
+
+/* ── Radix overlay animations ────────────────────────────────────── */
+@keyframes fadeIn  { from { opacity: 0 } to { opacity: 1 } }
+@keyframes fadeOut { from { opacity: 1 } to { opacity: 0 } }
+@keyframes slideUp { from { transform: translateY(8px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
+
+[data-state="open"]  > [data-radix-popper-content-wrapper] { animation: slideUp 0.15s ease-out; }
+[data-state="closed"] > [data-radix-popper-content-wrapper] { animation: fadeOut 0.1s ease-in; }
