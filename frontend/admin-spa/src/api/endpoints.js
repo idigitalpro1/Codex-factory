@@ -49,3 +49,56 @@ export const getArticles = (params = {}) =>
   api.get('/admin/articles', { params })
 export const createArticle = (data) => api.post('/admin/articles', data)
 export const updateArticle = (id, data) => api.patch(`/admin/articles/${id}`, data)
+
+// ── Shop Local Listings (localStorage mock — no backend yet) ───────
+// When a backend route is added, swap these for api.get/post/patch calls.
+const LS_KEY = 'cx-shop-listings'
+
+function lsGet() {
+  try {
+    return JSON.parse(localStorage.getItem(LS_KEY) || 'null') || { listings: [], total: 0 }
+  } catch {
+    return { listings: [], total: 0 }
+  }
+}
+function lsSet(state) {
+  localStorage.setItem(LS_KEY, JSON.stringify(state))
+}
+function mkId() {
+  return Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4)
+}
+
+export const getListings = () => {
+  return Promise.resolve({ data: lsGet() })
+}
+
+export const createListing = (listing) => {
+  const state = lsGet()
+  const record = {
+    id: mkId(),
+    createdAt: new Date().toISOString(),
+    status: 'active',
+    ...listing,
+  }
+  state.listings.unshift(record)
+  state.total = state.listings.length
+  lsSet(state)
+  return Promise.resolve({ data: record })
+}
+
+export const updateListing = (id, patch) => {
+  const state = lsGet()
+  const idx = state.listings.findIndex((l) => l.id === id)
+  if (idx < 0) return Promise.reject(new Error('Listing not found'))
+  state.listings[idx] = { ...state.listings[idx], ...patch }
+  lsSet(state)
+  return Promise.resolve({ data: state.listings[idx] })
+}
+
+export const deleteListing = (id) => {
+  const state = lsGet()
+  state.listings = state.listings.filter((l) => l.id !== id)
+  state.total = state.listings.length
+  lsSet(state)
+  return Promise.resolve({ data: { deleted: id } })
+}
