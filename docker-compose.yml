@@ -48,11 +48,6 @@ services:
       backend:
         condition: service_healthy
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost/index.html"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
 
 volumes:
   billing-creds:
